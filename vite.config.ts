@@ -19,5 +19,19 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['lucide-react'],
     include: ['react-pdf', 'pdfjs-dist'],
+    esbuildOptions: {
+      // Ensure Node.js globals are available
+      define: {
+        global: 'globalThis',
+      },
+    },
+  },
+  worker: {
+    format: 'es',
+    plugins: () => [
+      nodePolyfills({
+        protocolImports: true,
+      }),
+    ],
   },
 });
