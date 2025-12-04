@@ -6,7 +6,7 @@ import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Message } from '@/types/chat';
-import { sendChatMessage } from '@/services/api';
+import { sendChatMessage, sendChatMessageStream } from '@/services/api';
 import { useSettings } from '@/hooks/use-settings';
 
 interface ChatInterfaceProps {
@@ -46,39 +46,86 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
       timestamp: new Date(),
     };
 
+    const query = input;
     setMessages(prev => [...prev, userMessage]);
     setInput('');
     setIsLoading(true);
 
-    try {
-      const response = await sendChatMessage(input, chatConfig);
-
-      const assistantMessage: Message = {
-        id: (Date.now() + 1).toString(),
+    if (chatConfig.enableStreaming) {
+      // Streaming mode
+      const assistantMessageId = (Date.now() + 1).toString();
+      
+      // Add empty assistant message that will be updated as tokens arrive
+      setMessages(prev => [...prev, {
+        id: assistantMessageId,
         role: 'assistant',
-        content: response.content,
-        citations: response.citations,
+        content: '',
         timestamp: new Date(),
-      };
+      }]);
 
-      setMessages(prev => [...prev, assistantMessage]);
-      setIsLoading(false);
-    } catch (error) {
-      console.error('Error sending message:', error);
+      try {
+        await sendChatMessageStream(query, chatConfig, {
+          onToken: (token) => {
+            setMessages(prev => prev.map(msg => 
+              msg.id === assistantMessageId 
+                ? { ...msg, content: msg.content + token }
+                : msg
+            ));
+          },
+          onDone: () => {
+            setIsLoading(false);
+          },
+          onError: (error) => {
+            console.error('Streaming error:', error);
+            setMessages(prev => prev.map(msg => 
+              msg.id === assistantMessageId 
+                ? { ...msg, content: msg.content || `Error: ${error}` }
+                : msg
+            ));
+            setIsLoading(false);
+          },
+        });
+      } catch (error) {
+        console.error('Error in streaming:', error);
+        setMessages(prev => prev.map(msg => 
+          msg.id === assistantMessageId 
+            ? { ...msg, content: 'Unable to connect to the API.' }
+            : msg
+        ));
+        setIsLoading(false);
+      }
+    } else {
+      // Non-streaming mode
+      try {
+        const response = await sendChatMessage(query, chatConfig);
 
-      const errorMessage: Message = {
-        id: (Date.now() + 1).toString(),
-        role: 'assistant',
-        content: 'Unable to connect to the API.',
-        citations: [
-          { page: 1, text: 'Introduction section' },
-          { page: 5, text: 'Chapter 2.1' },
-        ],
-        timestamp: new Date(),
-      };
+        const assistantMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: response.content,
+          citations: response.citations,
+          timestamp: new Date(),
+        };
 
-      setMessages(prev => [...prev, errorMessage]);
-      setIsLoading(false);
+        setMessages(prev => [...prev, assistantMessage]);
+        setIsLoading(false);
+      } catch (error) {
+        console.error('Error sending message:', error);
+
+        const errorMessage: Message = {
+          id: (Date.now() + 1).toString(),
+          role: 'assistant',
+          content: 'Unable to connect to the API.',
+          citations: [
+            { page: 1, text: 'Introduction section' },
+            { page: 5, text: 'Chapter 2.1' },
+          ],
+          timestamp: new Date(),
+        };
+
+        setMessages(prev => [...prev, errorMessage]);
+        setIsLoading(false);
+      }
     }
   };
 
@@ -128,7 +175,12 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                     : 'bg-muted'
                 }`}
               >
-                <p className="whitespace-pre-wrap">{message.content}</p>
+                <p className="whitespace-pre-wrap">
+                  {message.content}
+                  {message.role === 'assistant' && isLoading && chatConfig.enableStreaming && message === messages[messages.length - 1] && (
+                    <span className="inline-block w-2 h-4 ml-0.5 bg-current animate-pulse" />
+                  )}
+                </p>
 
                 {message.citations && message.citations.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border/50">
@@ -151,7 +203,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
             </div>
           ))}
 
-          {isLoading && (
+          {isLoading && !chatConfig.enableStreaming && (
             <div className="flex justify-start">
               <Card className="p-4 bg-muted">
                 <Loader2 className="h-5 w-5 animate-spin" />

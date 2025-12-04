@@ -1,6 +1,6 @@
 import { Settings, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Checkbox } from '@/components/ui/checkbox';
+import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -40,6 +40,27 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
         <div className="mt-6">
 
           <div className="space-y-6">
+            {/* Enable Streaming */}
+            <div className="flex items-center justify-between space-x-2">
+              <div className="space-y-0.5 flex-1">
+                <Label htmlFor="enable-streaming" className="text-base font-medium">
+                  Enable Streaming
+                </Label>
+                <p className="text-sm text-muted-foreground">
+                  Stream responses token by token for a more interactive experience
+                </p>
+              </div>
+              <Switch
+                id="enable-streaming"
+                checked={chatConfig.enableStreaming}
+                onCheckedChange={(checked) =>
+                  updateChatConfig({ enableStreaming: checked })
+                }
+              />
+            </div>
+
+            <Separator />
+
             {/* Enable Chunks */}
             <div className="flex items-center justify-between space-x-2">
               <div className="space-y-0.5 flex-1">
@@ -50,11 +71,11 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   Enable or disable chunk-based retrieval for the query
                 </p>
               </div>
-              <Checkbox
+              <Switch
                 id="enable-chunks"
                 checked={chatConfig.enableChunks}
                 onCheckedChange={(checked) =>
-                  updateChatConfig({ enableChunks: checked === true })
+                  updateChatConfig({ enableChunks: checked })
                 }
               />
             </div>
