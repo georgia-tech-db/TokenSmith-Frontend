@@ -1,5 +1,6 @@
 export interface ChatConfig {
   enableChunks: boolean;
+  enableStreaming: boolean;
   promptType: string;
   maxChunks?: number;
   temperature?: number;
@@ -8,6 +9,7 @@ export interface ChatConfig {
 
 export const DEFAULT_CHAT_CONFIG: ChatConfig = {
   enableChunks: true,
+  enableStreaming: true,
   promptType: 'default',
   maxChunks: 5,
   temperature: 0.7,
