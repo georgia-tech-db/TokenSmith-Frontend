@@ -1,4 +1,4 @@
-import { ChatRequest, ChatResponse, Citation } from '@/types/chat';
+import { ChatRequest, ChatResponse, Citation, SourceItem } from '@/types/chat';
 import { ChatConfig } from '@/types/config';
 
 const API_BASE_URL = 'http://localhost:8000';
@@ -49,7 +49,7 @@ export async function sendChatMessage(
 
 export interface StreamCallbacks {
   onToken: (token: string) => void;
-  onDone: () => void;
+  onDone: (sources?: SourceItem[]) => void;
   onError: (error: string) => void;
 }
 
@@ -112,7 +112,9 @@ export async function sendChatMessageStream(
             if (data.type === 'token' && data.content) {
               callbacks.onToken(data.content);
             } else if (data.type === 'done') {
-              callbacks.onDone();
+              // Extract sources from the done message if present
+              const sources = data.sources || [];
+              callbacks.onDone(sources);
             } else if (data.type === 'error') {
               callbacks.onError(data.content || 'Unknown error');
             }

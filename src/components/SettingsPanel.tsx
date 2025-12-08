@@ -122,12 +122,26 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 type="number"
                 min="1"
                 max="20"
-                value={chatConfig.maxChunks || 5}
-                onChange={(e) =>
-                  updateChatConfig({
-                    maxChunks: Math.max(1, Math.min(20, parseInt(e.target.value) || 5)),
-                  })
-                }
+                value={chatConfig.maxChunks ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    updateChatConfig({ maxChunks: undefined });
+                  } else {
+                    const num = parseInt(value);
+                    if (!isNaN(num)) {
+                      updateChatConfig({
+                        maxChunks: Math.max(1, Math.min(20, num)),
+                      });
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || isNaN(parseInt(value))) {
+                    updateChatConfig({ maxChunks: 5 });
+                  }
+                }}
               />
             </div>
 
@@ -147,12 +161,26 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 min="0"
                 max="2"
                 step="0.1"
-                value={chatConfig.temperature || 0.7}
-                onChange={(e) =>
-                  updateChatConfig({
-                    temperature: Math.max(0, Math.min(2, parseFloat(e.target.value) || 0.7)),
-                  })
-                }
+                value={chatConfig.temperature ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    updateChatConfig({ temperature: undefined });
+                  } else {
+                    const num = parseFloat(value);
+                    if (!isNaN(num)) {
+                      updateChatConfig({
+                        temperature: Math.max(0, Math.min(2, num)),
+                      });
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || isNaN(parseFloat(value))) {
+                    updateChatConfig({ temperature: 0.7 });
+                  }
+                }}
               />
             </div>
 
@@ -171,12 +199,26 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 type="number"
                 min="1"
                 max="50"
-                value={chatConfig.topK || 10}
-                onChange={(e) =>
-                  updateChatConfig({
-                    topK: Math.max(1, Math.min(50, parseInt(e.target.value) || 10)),
-                  })
-                }
+                value={chatConfig.topK ?? ''}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  if (value === '') {
+                    updateChatConfig({ topK: undefined });
+                  } else {
+                    const num = parseInt(value);
+                    if (!isNaN(num)) {
+                      updateChatConfig({
+                        topK: Math.max(1, Math.min(50, num)),
+                      });
+                    }
+                  }
+                }}
+                onBlur={(e) => {
+                  const value = e.target.value;
+                  if (value === '' || isNaN(parseInt(value))) {
+                    updateChatConfig({ topK: 10 });
+                  }
+                }}
               />
             </div>
           </div>

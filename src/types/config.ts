@@ -10,17 +10,15 @@ export interface ChatConfig {
 export const DEFAULT_CHAT_CONFIG: ChatConfig = {
   enableChunks: true,
   enableStreaming: true,
-  promptType: 'default',
+  promptType: 'tutor',
   maxChunks: 5,
   temperature: 0.7,
   topK: 10,
 };
 
 export const PROMPT_TYPES = [
-  { value: 'default', label: 'Default Prompt' },
-  { value: 'concise', label: 'Concise Prompt' },
-  { value: 'detailed', label: 'Detailed Prompt' },
-  { value: 'educational', label: 'Educational Prompt' },
-  { value: 'qa', label: 'Q&A Prompt' },
+  { value: 'tutor', label: 'Tutor' },
+  { value: 'detailed', label: 'Detailed' },
+  { value: 'concise', label: 'Concise' },
 ];
 

@@ -72,7 +72,20 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                 : msg
             ));
           },
-          onDone: () => {
+          onDone: (sources) => {
+            // Convert sources to citations format and add to message
+            if (sources && sources.length > 0) {
+              const citations = sources.map(source => ({
+                page: source.page,
+                text: source.text
+              }));
+              
+              setMessages(prev => prev.map(msg => 
+                msg.id === assistantMessageId 
+                  ? { ...msg, citations }
+                  : msg
+              ));
+            }
             setIsLoading(false);
           },
           onError: (error) => {
@@ -175,7 +188,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                     : 'bg-muted'
                 }`}
               >
-                <p className="whitespace-pre-wrap">
+                <p className="whitespace-pre-wrap text-left">
                   {message.content}
                   {message.role === 'assistant' && isLoading && chatConfig.enableStreaming && message === messages[messages.length - 1] && (
                     <span className="inline-block w-2 h-4 ml-0.5 bg-current animate-pulse" />
