@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Lightbulb } from 'lucide-react';
+import { Send, Loader2, Lightbulb, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Message } from '@/types/chat';
 import { sendChatMessage, sendChatMessageStream } from '@/services/api';
 import { useSettings } from '@/hooks/use-settings';
@@ -198,16 +199,28 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                 {message.citations && message.citations.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border/50">
                     <p className="text-xs font-medium mb-2 opacity-70">Citations:</p>
-                    <div className="flex flex-wrap gap-2">
+                    <div className="space-y-2">
                       {message.citations.map((citation, idx) => (
-                        <Badge
-                          key={idx}
-                          variant="secondary"
-                          className="cursor-pointer hover:bg-secondary/80 transition-colors"
-                          onClick={() => onCitationClick(citation.page + 4, citation.position)}
-                        >
-                          Page {citation.page + 4}: {citation.text}
-                        </Badge>
+                        <Collapsible key={idx} className="border rounded-md">
+                          <CollapsibleTrigger className="w-full flex items-center justify-between p-2 hover:bg-secondary/50 transition-colors rounded-t-md [&[data-state=open]>div>svg]:rotate-90">
+                            <div className="flex items-center gap-2">
+                              <ChevronRight className="h-4 w-4 transition-transform duration-200" />
+                              <Badge
+                                variant="secondary"
+                                className="cursor-pointer"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onCitationClick(citation.page + 4, citation.position);
+                                }}
+                              >
+                                Page {citation.page + 4}
+                              </Badge>
+                            </div>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="px-4 pb-2 pt-1">
+                            <p className="text-sm text-muted-foreground">{citation.text}</p>
+                          </CollapsibleContent>
+                        </Collapsible>
                       ))}
                     </div>
                   </div>
