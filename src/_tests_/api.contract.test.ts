@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach, Mock } from 'vitest';
+import { describe, it, expect, vi, beforeEach} from 'vitest';
 import { sendChatMessage, sendChatMessageStream } from '@/services/api';
 import { ChatConfig } from '@/types/config';
 
