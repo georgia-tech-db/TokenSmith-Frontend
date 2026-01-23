@@ -51,6 +51,7 @@ export interface StreamCallbacks {
   onToken: (token: string) => void;
   onDone: (sources?: SourceItem[]) => void;
   onError: (error: string) => void;
+  onChunksByPage?: (chunksByPage: Record<number, string[]>) => void;
 }
 
 export async function sendChatMessageStream(
@@ -111,6 +112,8 @@ export async function sendChatMessageStream(
             
             if (data.type === 'token' && data.content) {
               callbacks.onToken(data.content);
+            } else if (data.type === 'chunks_by_page' && data.content) {
+              callbacks.onChunksByPage?.(data.content);
             } else if (data.type === 'done') {
               // Extract sources from the done message if present
               const sources = data.sources || [];

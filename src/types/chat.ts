@@ -34,5 +34,6 @@ export interface Message {
   role: 'user' | 'assistant';
   content: string;
   citations?: Citation[];
+  chunksByPage?: Record<number, string[]>;
   timestamp: Date;
 }

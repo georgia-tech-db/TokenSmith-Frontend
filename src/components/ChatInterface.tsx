@@ -73,6 +73,13 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                 : msg
             ));
           },
+          onChunksByPage: (chunksByPage) => {
+            setMessages(prev => prev.map(msg =>
+              msg.id === assistantMessageId
+                ? { ...msg, chunksByPage }
+                : msg
+            ));
+          },
           onDone: (sources) => {
             // Convert sources to citations format and add to message
             if (sources && sources.length > 0) {
@@ -200,28 +207,41 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                   <div className="mt-3 pt-3 border-t border-border/50">
                     <p className="text-xs font-medium mb-2 opacity-70">Citations:</p>
                     <div className="space-y-2">
-                      {message.citations.map((citation, idx) => (
-                        <Collapsible key={idx} className="border rounded-md">
-                          <CollapsibleTrigger className="w-full flex items-center justify-between p-2 hover:bg-secondary/50 transition-colors rounded-t-md [&[data-state=open]>div>svg]:rotate-90">
-                            <div className="flex items-center gap-2">
-                              <ChevronRight className="h-4 w-4 transition-transform duration-200" />
-                              <Badge
-                                variant="secondary"
-                                className="cursor-pointer"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  onCitationClick(citation.page + 4, citation.position);
-                                }}
-                              >
-                                Page {citation.page + 4}
-                              </Badge>
-                            </div>
-                          </CollapsibleTrigger>
-                          <CollapsibleContent className="px-4 pb-2 pt-1">
-                            <p className="text-sm text-muted-foreground">{citation.text}</p>
-                          </CollapsibleContent>
-                        </Collapsible>
-                      ))}
+                      {message.citations.map((citation, idx) => {
+                        const chunksForPage = message.chunksByPage?.[citation.page] ?? [];
+
+                        return (
+                          <Collapsible key={idx} className="border rounded-md">
+                            <CollapsibleTrigger className="w-full flex items-center justify-between p-2 hover:bg-secondary/50 transition-colors rounded-t-md [&[data-state=open]>div>svg]:rotate-90">
+                              <div className="flex items-center gap-2">
+                                <ChevronRight className="h-4 w-4 transition-transform duration-200" />
+                                <Badge
+                                  variant="secondary"
+                                  className="cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    onCitationClick(citation.page + 4, citation.position);
+                                  }}
+                                >
+                                  Page {citation.page + 4}
+                                </Badge>
+                              </div>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent className="px-4 pb-2 pt-1">
+                              <p className="text-sm text-muted-foreground">{citation.text}</p>
+                              {chunksForPage.length > 0 && (
+                                <div className="mt-3 space-y-2">
+                                  {chunksForPage.map((chunk, chunkIdx) => (
+                                    <p key={chunkIdx} className="text-xs text-muted-foreground text-left">
+                                      {chunk}
+                                    </p>
+                                  ))}
+                                </div>
+                              )}
+                            </CollapsibleContent>
+                          </Collapsible>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
