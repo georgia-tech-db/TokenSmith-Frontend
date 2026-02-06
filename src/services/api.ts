@@ -118,7 +118,7 @@ export async function sendChatMessageStream(
             } else if (data.type === 'error') {
               callbacks.onError(data.content || 'Unknown error');
             }
-          } catch (parseError) {
+          } catch {
             console.warn('Failed to parse SSE message:', jsonStr);
           }
         }
