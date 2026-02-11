@@ -26,15 +26,6 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
               <Settings className="h-5 w-5" />
               <DialogTitle>Chat Settings</DialogTitle>
             </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={resetChatConfig}
-              className="gap-2"
-            >
-              <RotateCcw className="h-4 w-4" />
-              Reset
-            </Button>
           </div>
         </DialogHeader>
         <div className="mt-6">
@@ -221,6 +212,17 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 }}
               />
             </div>
+            
+            {/* Reset */}
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={resetChatConfig}
+              className="space-y-2 gap-2 w-full"
+            >
+              <RotateCcw className="h-4 w-4" />
+              Reset Settings
+            </Button>
           </div>
         </div>
       </DialogContent>
