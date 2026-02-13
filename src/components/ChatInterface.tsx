@@ -12,6 +12,7 @@ import { useSettings } from '@/hooks/use-settings';
 
 interface ChatInterfaceProps {
   onCitationClick: (page: number, position?: { top: number; height: number }) => void;
+  isChatDisabled?: boolean;
 }
 
 const SAMPLE_QUESTIONS = [
@@ -20,7 +21,7 @@ const SAMPLE_QUESTIONS = [
   "What is atomicity?"
 ];
 
-export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
+export function ChatInterface({ onCitationClick, isChatDisabled = false }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -38,7 +39,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || isChatDisabled) return;
 
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -144,6 +145,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
   };
 
   const handleSampleQuestion = (question: string) => {
+    if (isChatDisabled) return;
     setInput(question);
   };
 
@@ -168,6 +170,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                       variant="outline"
                       className="h-auto p-4 text-left justify-start hover:bg-primary/5 hover:border-primary/20 transition-colors whitespace-normal"
                       onClick={() => handleSampleQuestion(question)}
+                      disabled={isChatDisabled}
                     >
                       <span className="text-sm leading-relaxed break-words">{question}</span>
                     </Button>
@@ -244,7 +247,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
           <Textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
-            placeholder="Ask a question about your textbook..."
+            placeholder={isChatDisabled ? "Chat is disabled while index is being updated." : "Ask a question about your textbook..."}
             className="min-h-[80px] resize-none text-base"
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !e.shiftKey) {
@@ -252,8 +255,9 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                 handleSubmit(e);
               }
             }}
+            disabled={isChatDisabled}
           />
-          <Button type="submit" size="lg" disabled={isLoading || !input.trim()} className="h-auto">
+          <Button type="submit" size="lg" disabled={isLoading || !input.trim() || isChatDisabled} className="h-auto">
             <Send className="h-5 w-5" />
           </Button>
         </div>

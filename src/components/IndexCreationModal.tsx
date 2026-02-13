@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -16,6 +16,8 @@ interface IndexCreationModalProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (chapters: number[]) => void;
   isBuilding: boolean;
+  indexedChapters?: number[];
+  mode?: 'build' | 'add';
 }
 
 const START_CHAPTER = 0;
@@ -26,8 +28,16 @@ export function IndexCreationModal({
   onOpenChange,
   onSubmit,
   isBuilding,
+  indexedChapters = [],
+  mode = 'build',
 }: IndexCreationModalProps) {
   const [selectedChapters, setSelectedChapters] = useState<number[]>([]);
+
+  useEffect(() => {
+    if (open) {
+      setSelectedChapters([]);
+    }
+  }, [open]);
 
   const chapters = Array.from(
     { length: END_CHAPTER - START_CHAPTER + 1 },
@@ -35,6 +45,7 @@ export function IndexCreationModal({
   );
 
   const handleChapterToggle = (chapter: number) => {
+    if (indexedChapters.includes(chapter)) return;
     setSelectedChapters((prev) =>
       prev.includes(chapter)
         ? prev.filter((c) => c !== chapter)
@@ -46,14 +57,19 @@ export function IndexCreationModal({
     onSubmit(selectedChapters);
   };
 
+  const title = mode === 'build' ? 'Build Index' : 'Add Chapters';
+  const description =
+    mode === 'build'
+      ? 'Select the chapters you want to include in the index.'
+      : 'Select additional chapters to add to the index.';
+  const buttonText = mode === 'build' ? 'Build Index' : 'Add Chapters';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Build Index</DialogTitle>
-          <DialogDescription>
-            Select the chapters you want to include in the index.
-          </DialogDescription>
+          <DialogTitle>{title}</DialogTitle>
+          <DialogDescription>{description}</DialogDescription>
         </DialogHeader>
         <ScrollArea className="h-72 w-full rounded-md border p-4">
           <div className="grid gap-4">
@@ -61,7 +77,11 @@ export function IndexCreationModal({
               <div key={chapter} className="flex items-center space-x-2">
                 <Checkbox
                   id={`chapter-${chapter}`}
-                  checked={selectedChapters.includes(chapter)}
+                  checked={
+                    selectedChapters.includes(chapter) ||
+                    indexedChapters.includes(chapter)
+                  }
+                  disabled={indexedChapters.includes(chapter)}
                   onCheckedChange={() => handleChapterToggle(chapter)}
                 />
                 <label
@@ -79,7 +99,7 @@ export function IndexCreationModal({
             onClick={handleSubmit}
             disabled={isBuilding || selectedChapters.length === 0}
           >
-            {isBuilding ? 'Building...' : 'Build Index'}
+            {isBuilding ? 'Building...' : buttonText}
           </Button>
         </DialogFooter>
       </DialogContent>

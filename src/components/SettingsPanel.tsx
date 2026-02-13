@@ -1,4 +1,4 @@
-import { Settings, RotateCcw } from 'lucide-react';
+import { Settings, RotateCcw, PlusCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -12,9 +12,10 @@ import { PROMPT_TYPES } from '@/types/config';
 interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  onManageIndex: () => void;
 }
 
-export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
+export function SettingsPanel({ isOpen, onClose, onManageIndex }: SettingsPanelProps) {
   const { chatConfig, updateChatConfig, resetChatConfig } = useSettings();
 
   return (
@@ -212,6 +213,19 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 }}
               />
             </div>
+            
+            <Separator />
+
+            {/* Manage Index */}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onManageIndex}
+              className="space-y-2 gap-2 w-full"
+            >
+              <PlusCircle className="h-4 w-4" />
+              Add/Remove Chapters
+            </Button>
             
             {/* Reset */}
             <Button

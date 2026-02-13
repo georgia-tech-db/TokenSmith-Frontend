@@ -6,11 +6,12 @@ import PdfViewer from '@/components/PdfViewer';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { LandingPage } from '@/components/LandingPage';
 import { IndexCreationModal } from '@/components/IndexCreationModal';
-import { getIndexStatus, buildIndex } from '@/services/api';
+import { getIndexStatus, buildIndex, addChaptersToIndex } from '@/services/api';
 import { cn } from '@/lib/utils';
 import './App.css';
 
 type IndexStatus = 'loading' | 'indexed' | 'not_indexed';
+type ModalMode = 'build' | 'add';
 
 function App() {
   const [showPdf, setShowPdf] = useState(false);
@@ -18,14 +19,18 @@ function App() {
   const [targetPage, setTargetPage] = useState<number | undefined>();
   const [targetPosition, setTargetPosition] = useState<{ top: number; height: number } | undefined>();
   const [indexStatus, setIndexStatus] = useState<IndexStatus>('loading');
+  const [indexedChapters, setIndexedChapters] = useState<number[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalMode, setModalMode] = useState<ModalMode>('build');
   const [isBuilding, setIsBuilding] = useState(false);
+  const [isChatDisabled, setIsChatDisabled] = useState(false);
 
   useEffect(() => {
     const checkIndexStatus = async () => {
       try {
-        const { status } = await getIndexStatus();
+        const { status, chapters } = await getIndexStatus();
         setIndexStatus(status === 'not_indexed' ? 'not_indexed' : 'indexed');
+        setIndexedChapters(chapters);
       } catch (error) {
         console.error('Error checking index status:', error);
         setIndexStatus('not_indexed'); // Fallback to allow index creation
@@ -45,12 +50,38 @@ function App() {
     try {
       await buildIndex(chapters);
       setIndexStatus('indexed');
+      setIndexedChapters(chapters);
       setIsModalOpen(false);
     } catch (error) {
       console.error('Error building index:', error);
     } finally {
       setIsBuilding(false);
     }
+  };
+
+  const handleAddChapters = async (chapters: number[]) => {
+    setIsBuilding(true);
+    setIsChatDisabled(true);
+    try {
+      await addChaptersToIndex(chapters);
+      setIndexedChapters((prev) => [...prev, ...chapters]);
+      setIsModalOpen(false);
+    } catch (error) {
+      console.error('Error adding chapters:', error);
+    } finally {
+      setIsBuilding(false);
+      setIsChatDisabled(false);
+    }
+  };
+
+  const openBuildModal = () => {
+    setModalMode('build');
+    setIsModalOpen(true);
+  };
+
+  const openAddModal = () => {
+    setModalMode('add');
+    setIsModalOpen(true);
   };
 
   const renderContent = () => {
@@ -63,12 +94,12 @@ function App() {
           </div>
         );
       case 'not_indexed':
-        return <LandingPage onBuildIndex={() => setIsModalOpen(true)} />;
+        return <LandingPage onBuildIndex={openBuildModal} />;
       case 'indexed':
         return (
           <main className="flex-1 overflow-hidden flex">
             <div className={cn("flex-1 overflow-hidden transition-all duration-300", showPdf ? "w-1/2" : "w-full")}>
-              <ChatInterface onCitationClick={handleCitationClick} />
+              <ChatInterface onCitationClick={handleCitationClick} isChatDisabled={isChatDisabled} />
             </div>
             {showPdf && (
               <div className="w-1/2 border-l overflow-hidden">
@@ -112,13 +143,19 @@ function App() {
 
       {renderContent()}
 
-      <SettingsPanel isOpen={showSettings} onClose={() => setShowSettings(false)} />
+      <SettingsPanel
+        isOpen={showSettings}
+        onClose={() => setShowSettings(false)}
+        onManageIndex={openAddModal}
+      />
 
       <IndexCreationModal
         open={isModalOpen}
         onOpenChange={setIsModalOpen}
-        onSubmit={handleBuildIndex}
+        onSubmit={modalMode === 'build' ? handleBuildIndex : handleAddChapters}
         isBuilding={isBuilding}
+        indexedChapters={indexedChapters}
+        mode={modalMode}
       />
     </div>
   );
