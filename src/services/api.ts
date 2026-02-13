@@ -3,6 +3,28 @@ import { ChatConfig } from '@/types/config';
 
 const API_BASE_URL = 'http://localhost:8000';
 
+export async function getIndexStatus(): Promise<{ status: string; indexed_chapters: number[] }> {
+  const response = await fetch(`${API_BASE_URL}/api/index/status`);
+  if (!response.ok) {
+    throw new Error(`Failed to get index status: ${response.status} ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function buildIndex(chapters: number[]): Promise<void> {
+  const response = await fetch(`${API_BASE_URL}/api/index/build`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ chapters }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to build index: ${response.status} ${response.statusText}`);
+  }
+}
+
 export async function sendChatMessage(
   query: string,
   chatConfig: ChatConfig
