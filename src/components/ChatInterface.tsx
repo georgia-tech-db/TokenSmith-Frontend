@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Lightbulb, ChevronRight } from 'lucide-react';
+import { Send, Loader2, Lightbulb, ChevronRight, ThumbsUp, ThumbsDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Message } from '@/types/chat';
-import { sendChatMessage, sendChatMessageStream } from '@/services/api';
+import { sendChatMessage, sendChatMessageStream, submitFeedback } from '@/services/api';
 import { useSettings } from '@/hooks/use-settings';
 
 interface ChatInterfaceProps {
@@ -24,6 +24,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [sessionId, setSessionId] = useState<string | null>(null);
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { chatConfig } = useSettings();
 
@@ -73,20 +74,28 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                 : msg
             ));
           },
-          onDone: (sources) => {
+          onDone: ({ sources, answerId, sessionId: responseSessionId }) => {
             // Convert sources to citations format and add to message
-            if (sources && sources.length > 0) {
-              const citations = sources.map(source => ({
-                page: source.page,
-                text: source.text
-              }));
-              
-              setMessages(prev => prev.map(msg => 
-                msg.id === assistantMessageId 
-                  ? { ...msg, citations }
-                  : msg
-              ));
+            if (responseSessionId) {
+              setSessionId(responseSessionId);
             }
+            const citations = sources && sources.length > 0
+              ? sources.map(source => ({
+                  page: source.page,
+                  text: source.text
+                }))
+              : undefined;
+
+            setMessages(prev => prev.map(msg => 
+              msg.id === assistantMessageId 
+                ? { 
+                    ...msg, 
+                    ...(citations ? { citations } : {}),
+                    answerId: answerId || msg.answerId,
+                    sessionId: responseSessionId || msg.sessionId,
+                  }
+                : msg
+            ));
             setIsLoading(false);
           },
           onError: (error) => {
@@ -98,7 +107,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
             ));
             setIsLoading(false);
           },
-        });
+        }, sessionId || undefined);
       } catch (error) {
         console.error('Error in streaming:', error);
         setMessages(prev => prev.map(msg => 
@@ -111,7 +120,8 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
     } else {
       // Non-streaming mode
       try {
-        const response = await sendChatMessage(query, chatConfig);
+        const response = await sendChatMessage(query, chatConfig, sessionId || undefined);
+        setSessionId(response.sessionId);
 
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
@@ -119,6 +129,8 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
           content: response.content,
           citations: response.citations,
           timestamp: new Date(),
+          answerId: response.answerId,
+          sessionId: response.sessionId,
         };
 
         setMessages(prev => [...prev, assistantMessage]);
@@ -140,6 +152,37 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
         setMessages(prev => [...prev, errorMessage]);
         setIsLoading(false);
       }
+    }
+  };
+
+  const handleFeedback = async (messageId: string, vote: 1 | -1) => {
+    const targetMessage = messages.find(msg => msg.id === messageId);
+    if (!targetMessage || targetMessage.feedbackSubmitting || targetMessage.feedback) {
+      return;
+    }
+    if (!targetMessage.answerId || !targetMessage.sessionId) {
+      console.warn('Missing answerId or sessionId for feedback');
+      return;
+    }
+
+    setMessages(prev => prev.map(msg =>
+      msg.id === messageId ? { ...msg, feedbackSubmitting: true } : msg
+    ));
+
+    try {
+      await submitFeedback({
+        answer_id: targetMessage.answerId,
+        vote,
+        session_id: targetMessage.sessionId,
+      });
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId ? { ...msg, feedback: vote, feedbackSubmitting: false } : msg
+      ));
+    } catch (error) {
+      console.error('Failed to submit feedback:', error);
+      setMessages(prev => prev.map(msg =>
+        msg.id === messageId ? { ...msg, feedbackSubmitting: false } : msg
+      ));
     }
   };
 
@@ -195,6 +238,34 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                     <span className="inline-block w-2 h-4 ml-0.5 bg-current animate-pulse" />
                   )}
                 </p>
+
+                {message.role === 'assistant' && (
+                  <div className="mt-3 flex items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className={`h-8 px-2 ${message.feedback === 1 ? 'text-primary' : ''}`}
+                      disabled={!!message.feedback || message.feedbackSubmitting || !message.answerId || !message.sessionId}
+                      onClick={() => handleFeedback(message.id, 1)}
+                    >
+                      <ThumbsUp className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className={`h-8 px-2 ${message.feedback === -1 ? 'text-primary' : ''}`}
+                      disabled={!!message.feedback || message.feedbackSubmitting || !message.answerId || !message.sessionId}
+                      onClick={() => handleFeedback(message.id, -1)}
+                    >
+                      <ThumbsDown className="h-4 w-4" />
+                    </Button>
+                    {message.feedbackSubmitting && (
+                      <span className="text-xs text-muted-foreground">Submitting…</span>
+                    )}
+                  </div>
+                )}
 
                 {message.citations && message.citations.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border/50">

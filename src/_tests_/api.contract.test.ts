@@ -25,6 +25,8 @@ describe('API Service Contract', () => {
     it('sends correct request and transforms response', async () => {
       // Mock the backend response
       const mockResponseData = {
+        answer_id: 'answer-123',
+        session_id: 'session-456',
         answer: 'Test answer',
         sources: [{ page: 1, text: 'Source text' }]
       };
@@ -35,7 +37,7 @@ describe('API Service Contract', () => {
       });
 
       // Call the function
-      const result = await sendChatMessage('Hello', mockConfig);
+      const result = await sendChatMessage('Hello', mockConfig, 'session-123');
 
       // Verify the request format
       expect(fetchMock).toHaveBeenCalledWith(
@@ -45,6 +47,7 @@ describe('API Service Contract', () => {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             query: 'Hello',
+            session_id: 'session-123',
             enable_chunks: true,
             prompt_type: 'tutor',
             max_chunks: 5,
@@ -57,7 +60,9 @@ describe('API Service Contract', () => {
       // Verify the output transformation
       expect(result).toEqual({
         content: 'Test answer',
-        citations: [{ page: 1, text: 'Source text' }]
+        citations: [{ page: 1, text: 'Source text' }],
+        answerId: 'answer-123',
+        sessionId: 'session-456',
       });
     });
 
@@ -94,7 +99,7 @@ describe('API Service Contract', () => {
       const mockChunks = [
         'data: {"type": "token", "content": "Hello"}\n',
         'data: {"type": "token", "content": " World"}\n',
-        'data: {"type": "done", "sources": [{"page": 2, "text": "ref"}]}\n'
+        'data: {"type": "done", "answer_id": "answer-999", "session_id": "session-999", "sources": [{"page": 2, "text": "ref"}]}\n'
       ];
       
       fetchMock.mockResolvedValueOnce(createStreamResponse(mockChunks));
@@ -107,7 +112,7 @@ describe('API Service Contract', () => {
       };
 
       // Run the function
-      await sendChatMessageStream('Test Query', mockConfig, callbacks);
+      await sendChatMessageStream('Test Query', mockConfig, callbacks, 'session-123');
 
       // Verify callbacks
       // Check tokens
@@ -117,7 +122,11 @@ describe('API Service Contract', () => {
 
       // Check done event and source extraction
       expect(callbacks.onDone).toHaveBeenCalledTimes(1);
-      expect(callbacks.onDone).toHaveBeenCalledWith([{ page: 2, text: 'ref' }]);
+      expect(callbacks.onDone).toHaveBeenCalledWith({
+        sources: [{ page: 2, text: 'ref' }],
+        answerId: 'answer-999',
+        sessionId: 'session-999',
+      });
       
       // Ensure no errors
       expect(callbacks.onError).not.toHaveBeenCalled();
@@ -143,7 +152,7 @@ describe('API Service Contract', () => {
         'data: {"type": "token", "content": "Good"}\n',
         'data: {BAD_JSON_HERE}\n', 
         'data: {"type": "token", "content": "Morning"}\n',
-        'data: {"type": "done"}\n'
+        'data: {"type": "done", "answer_id": "answer-1", "session_id": "session-1"}\n'
       ];
       
       fetchMock.mockResolvedValueOnce(createStreamResponse(mockChunks));
@@ -158,7 +167,11 @@ describe('API Service Contract', () => {
       // Should skip the bad chunk and process the valid ones
       expect(callbacks.onToken).toHaveBeenCalledWith('Good');
       expect(callbacks.onToken).toHaveBeenCalledWith('Morning');
-      expect(callbacks.onDone).toHaveBeenCalled();
+      expect(callbacks.onDone).toHaveBeenCalledWith({
+        sources: [],
+        answerId: 'answer-1',
+        sessionId: 'session-1',
+      });
       
       consoleSpy.mockRestore();
     });
