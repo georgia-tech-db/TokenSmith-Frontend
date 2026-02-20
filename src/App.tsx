@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { Book, X, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { ChatInterface } from '@/components/ChatInterface';
 import PdfViewer from '@/components/PdfViewer';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import { useSettings } from '@/hooks/use-settings';
 import { cn } from '@/lib/utils';
 import './App.css';
 
@@ -12,6 +15,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [targetPage, setTargetPage] = useState<number | undefined>();
   const [targetPosition, setTargetPosition] = useState<{ top: number; height: number } | undefined>();
+  const { chatConfig, updateChatConfig } = useSettings();
 
   const handleCitationClick = (page: number, position?: { top: number; height: number }) => {
     setTargetPage(page);
@@ -25,6 +29,21 @@ function App() {
         <div className="px-6 py-4 flex items-center justify-between">
           <h1 className="text-2xl font-bold">DB Learning Assistant</h1>
           <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 bg-background">
+              <Label htmlFor="header-enable-chunks" className="text-sm text-muted-foreground">
+                Use Chunks
+              </Label>
+              <Switch
+                id="header-enable-chunks"
+                checked={chatConfig.enableChunks}
+                onCheckedChange={(checked) => updateChatConfig({ enableChunks: checked })}
+                className="relative"
+              >
+                <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[9px] font-medium text-muted-foreground group-data-[state=checked]:text-primary-foreground">
+                  {chatConfig.enableChunks ? 'On' : 'Off'}
+                </span>
+              </Switch>
+            </div>
             <Button
               variant="outline"
               size="sm"
