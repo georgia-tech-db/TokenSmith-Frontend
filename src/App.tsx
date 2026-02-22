@@ -33,16 +33,22 @@ function App() {
               <Label htmlFor="header-enable-chunks" className="text-sm text-muted-foreground">
                 Use Chunks
               </Label>
-              <Switch
-                id="header-enable-chunks"
-                checked={chatConfig.enableChunks}
-                onCheckedChange={(checked) => updateChatConfig({ enableChunks: checked })}
-                className="relative"
-              >
-                <span className="pointer-events-none absolute inset-0 flex items-center justify-center text-[9px] font-medium text-muted-foreground group-data-[state=checked]:text-primary-foreground">
+              <div className="relative h-5 w-9">
+                <Switch
+                  id="header-enable-chunks"
+                  checked={chatConfig.enableChunks}
+                  onCheckedChange={(checked) => updateChatConfig({ enableChunks: checked })}
+                  className="absolute inset-0"
+                />
+                <span
+                  className={cn(
+                    'pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[9px] font-medium leading-none',
+                    chatConfig.enableChunks ? 'text-primary-foreground' : 'text-muted-foreground'
+                  )}
+                >
                   {chatConfig.enableChunks ? 'On' : 'Off'}
                 </span>
-              </Switch>
+              </div>
             </div>
             <Button
               variant="outline"
