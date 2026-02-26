@@ -1,15 +1,17 @@
-import { ChatRequest, ChatResponse, Citation, SourceItem } from '@/types/chat';
+import { ChatRequest, ChatResponse, Citation, FeedbackRequest, SourceItem } from '@/types/chat';
 import { ChatConfig } from '@/types/config';
 
 const API_BASE_URL = 'http://localhost:8000';
 
 export async function sendChatMessage(
   query: string,
-  chatConfig: ChatConfig
-): Promise<{ content: string; citations: Citation[] }> {
+  chatConfig: ChatConfig,
+  sessionId?: string
+): Promise<{ content: string; citations: Citation[]; answerId: string; sessionId: string }> {
   try {
     const request: ChatRequest = { 
       query,
+      session_id: sessionId || undefined,
       enable_chunks: chatConfig.enableChunks,
       prompt_type: chatConfig.promptType,
       max_chunks: chatConfig.maxChunks,
@@ -39,7 +41,9 @@ export async function sendChatMessage(
 
     return {
       content: data.answer,
-      citations: citations
+      citations: citations,
+      answerId: data.answer_id,
+      sessionId: data.session_id,
     };
   } catch (error) {
     console.error('Error sending message:', error);
@@ -49,18 +53,20 @@ export async function sendChatMessage(
 
 export interface StreamCallbacks {
   onToken: (token: string) => void;
-  onDone: (sources?: SourceItem[]) => void;
+  onDone: (data: { sources?: SourceItem[]; answerId?: string; sessionId?: string }) => void;
   onError: (error: string) => void;
 }
 
 export async function sendChatMessageStream(
   query: string,
   chatConfig: ChatConfig,
-  callbacks: StreamCallbacks
+  callbacks: StreamCallbacks,
+  sessionId?: string
 ): Promise<void> {
   try {
     const request: ChatRequest = { 
       query,
+      session_id: sessionId || undefined,
       enable_chunks: chatConfig.enableChunks,
       prompt_type: chatConfig.promptType,
       max_chunks: chatConfig.maxChunks,
@@ -113,8 +119,11 @@ export async function sendChatMessageStream(
               callbacks.onToken(data.content);
             } else if (data.type === 'done') {
               // Extract sources from the done message if present
-              const sources = data.sources || [];
-              callbacks.onDone(sources);
+              callbacks.onDone({
+                sources: data.sources || [],
+                answerId: data.answer_id,
+                sessionId: data.session_id,
+              });
             } else if (data.type === 'error') {
               callbacks.onError(data.content || 'Unknown error');
             }
@@ -127,5 +136,24 @@ export async function sendChatMessageStream(
   } catch (error) {
     console.error('Error in streaming message:', error);
     callbacks.onError(error instanceof Error ? error.message : 'Unknown error');
+  }
+}
+
+export async function submitFeedback(request: FeedbackRequest): Promise<void> {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/feedback`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(request),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to submit feedback: ${response.status} ${response.statusText}`);
+    }
+  } catch (error) {
+    console.error('Error submitting feedback:', error);
+    throw error;
   }
 }
