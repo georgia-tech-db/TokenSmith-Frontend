@@ -1,5 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
 import { Send, Loader2, Lightbulb, ChevronRight } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -196,12 +198,31 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                     : 'bg-muted'
                 }`}
               >
-                <p className="whitespace-pre-wrap text-left">
-                  {message.content}
-                  {message.role === 'assistant' && isLoading && chatConfig.enableStreaming && message === messages[messages.length - 1] && (
-                    <span className="inline-block w-2 h-4 ml-0.5 bg-current animate-pulse" />
-                  )}
-                </p>
+                <div className={`text-left text-sm ${message.role === 'user' ? '' : 'prose prose-neutral dark:prose-invert max-w-none'}`}>
+                  <ReactMarkdown 
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      p: ({children}) => <p className="mb-2 last:mb-0 whitespace-pre-wrap">{children}</p>,
+                      a: ({ ...props}) => <a {...props} className="text-primary hover:underline" target="_blank" rel="noreferrer" />,
+                      ul: ({children}) => <ul className="list-disc pl-4 mb-2">{children}</ul>,
+                      ol: ({children}) => <ol className="list-decimal pl-4 mb-2">{children}</ol>,
+                      li: ({children}) => <li className="mb-1">{children}</li>,
+                      code: ({inline, children, ...props}: React.HTMLAttributes<HTMLElement> & { inline?: boolean }) => {
+                        return inline ? (
+                          <code className="bg-neutral-200 px-1 rounded text-sm" {...props}>
+                            {children}
+                          </code>
+                        ) : (
+                          <code className="block bg-neutral-200 p-2 rounded text-sm overflow-x-auto" {...props}>
+                            {children}
+                          </code>
+                        )
+                      }
+                    }}
+                  >
+                    {message.content + (message.role === 'assistant' && isLoading && chatConfig.enableStreaming && message === messages[messages.length - 1] ? ' ▎' : '')}
+                  </ReactMarkdown>
+                </div>
 
                 {message.citations && message.citations.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border/50">
