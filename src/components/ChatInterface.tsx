@@ -220,10 +220,10 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                                   className="cursor-pointer"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onCitationClick(citation.page + 4, citation.position);
+                                    onCitationClick(citation.page, citation.position);
                                   }}
                                 >
-                                  Page {citation.page + 4}
+                                  Page {citation.page}
                                 </Badge>
                               </div>
                             </CollapsibleTrigger>
