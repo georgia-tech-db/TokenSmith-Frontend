@@ -1,20 +1,17 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { ScrollArea } from '@/components/ui/scroll-area';
 
 interface MdViewerProps {
-  // Chunk indices to highlight (from chat response chunks_used[])
-  highlightChunks?: Set<number>;
-  // Called with the heading→element map so parent can scroll on citation click
-  onChunkRefsReady?: (refs: Record<string, HTMLElement>) => void;
+  // Exact chunk texts to highlight at paragraph level
+  highlightChunkTexts?: string[];
 }
 
-export default function MdViewer({ highlightChunks: _highlightChunks = new Set(), onChunkRefsReady }: MdViewerProps) {
+export default function MdViewer({ highlightChunkTexts = [] }: MdViewerProps) {
   const [markdown, setMarkdown] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const chunkRefs = useRef<Record<string, HTMLElement>>({});
 
   // Load markdown directly from public/book/content.md — no API call needed
   useEffect(() => {
@@ -31,21 +28,23 @@ export default function MdViewer({ highlightChunks: _highlightChunks = new Set()
       });
   }, []);
 
-  // Notify parent after markdown renders — rAF ensures ref callbacks have fired
+  // Pre-compute 80-char prefixes for O(n) lookup — avoids rebuilding in every p renderer call
+  const highlightPrefixes = useMemo(
+    () => highlightChunkTexts.map(t => t.trim().slice(0, 80)).filter(p => p.length > 20),
+    [highlightChunkTexts]
+  );
+
+  // Auto-scroll to the first highlighted paragraph whenever highlights change
   useEffect(() => {
-    if (!markdown || !onChunkRefsReady) return;
+    if (highlightPrefixes.length === 0) return;
     const id = requestAnimationFrame(() => {
-      if (Object.keys(chunkRefs.current).length > 0) {
-        onChunkRefsReady(chunkRefs.current);
-      }
+      requestAnimationFrame(() => {
+        const el = document.querySelector<HTMLElement>('[data-chunk-highlight]');
+        if (el) el.scrollIntoView({ block: 'center' });
+      });
     });
     return () => cancelAnimationFrame(id);
-  }, [markdown, onChunkRefsReady]);
-
-  // Register heading elements for scroll targeting
-  const registerHeadingRef = useCallback((heading: string, el: HTMLElement | null) => {
-    if (el) chunkRefs.current[heading] = el;
-  }, []);
+  }, [highlightPrefixes]);
 
   if (loading) {
     return (
@@ -93,37 +92,25 @@ export default function MdViewer({ highlightChunks: _highlightChunks = new Set()
                   </div>
                 );
               }
+              const isHighlit = highlightPrefixes.length > 0 &&
+                highlightPrefixes.some(prefix => trimmed.startsWith(prefix));
+              if (isHighlit) {
+                return (
+                  <p data-chunk-highlight="true" className="bg-yellow-100 dark:bg-yellow-900/30 rounded px-2 -mx-2">
+                    {children}
+                  </p>
+                );
+              }
               return <p>{children}</p>;
             },
 
-            // Register h2 headings for scroll targeting
+            // h2/h3: keep data-heading for potential future use
             h2({ children, ...props }) {
-              const text = String(children);
-              return (
-                <h2
-                  {...props}
-                  ref={(el: HTMLHeadingElement | null) => registerHeadingRef(text, el)}
-                  data-heading={text}
-                  className="scroll-mt-4"
-                >
-                  {children}
-                </h2>
-              );
+              return <h2 {...props} className="scroll-mt-4">{children}</h2>;
             },
 
-            // Register h3 headings too
             h3({ children, ...props }) {
-              const text = String(children);
-              return (
-                <h3
-                  {...props}
-                  ref={(el: HTMLHeadingElement | null) => registerHeadingRef(text, el)}
-                  data-heading={text}
-                  className="scroll-mt-4"
-                >
-                  {children}
-                </h3>
-              );
+              return <h3 {...props} className="scroll-mt-4">{children}</h3>;
             },
           }}
         >

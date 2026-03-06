@@ -1,6 +1,6 @@
 export interface SourceItem {
   page: number;
-  text: string;
+  text: string; // file path from backend, not chunk text
 }
 
 export interface ChatRequest {
@@ -17,17 +17,12 @@ export interface ChatResponse {
   answer: string;
   sources: SourceItem[];
   chunks_used: number[];
+  chunks_by_page: Record<number, string[]>;
   query: string;
 }
 
-export interface Citation {
-  page: number;
-  text: string;
-  position?: {
-    top: number;
-    height: number;
-  };
-}
+// Citation is now the same shape as SourceItem (backend removed section fields)
+export type Citation = SourceItem;
 
 export interface Message {
   id: string;

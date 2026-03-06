@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState } from 'react';
 import { Book, X, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -6,7 +6,6 @@ import { Switch } from '@/components/ui/switch';
 import { ChatInterface } from '@/components/ChatInterface';
 import MdViewer from '@/components/MdViewer';
 import { SettingsPanel } from '@/components/SettingsPanel';
-import { fetchChunkMap, ChunkMapEntry } from '@/services/api';
 import { useSettings } from '@/hooks/use-settings';
 import { cn } from '@/lib/utils';
 import './App.css';
@@ -14,36 +13,17 @@ import './App.css';
 function App() {
   const [showPdf, setShowPdf] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const chunkHeadingRefs = useRef<Record<string, HTMLElement>>({});
-  const chunkMapRef = useRef<Record<string, ChunkMapEntry>>({});
+  const [highlightChunkTexts, setHighlightChunkTexts] = useState<string[]>([]);
   const { chatConfig, updateChatConfig } = useSettings();
 
-  useEffect(() => {
-    fetchChunkMap()
-      .then(map => { chunkMapRef.current = map; })
-      .catch(console.error);
-  }, []);
-
-  function handleChunkRefsReady(refs: Record<string, HTMLElement>) {
-    chunkHeadingRefs.current = refs;
-  }
-
-  const handleCitationClick = (heading: string) => {
+  const handleCitationClick = (_heading: string, chunkTexts: string[]) => {
     setShowPdf(true);
-    // Use rAF to wait for panel to be visible before scrolling
-    const tryScroll = () => {
-      // Primary: exact data-heading attribute match
-      const exact = document.querySelector<HTMLElement>(`[data-heading="${CSS.escape(heading)}"]`);
-      if (exact) { exact.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
-      // Fallback: partial text match in registered refs
-      const refs = chunkHeadingRefs.current;
-      const key = Object.keys(refs).find(k =>
-        k.toLowerCase().includes(heading.toLowerCase()) ||
-        heading.toLowerCase().includes(k.toLowerCase())
-      );
-      if (key) refs[key].scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
-    requestAnimationFrame(() => requestAnimationFrame(tryScroll));
+    setHighlightChunkTexts(chunkTexts);
+    // MdViewer auto-scrolls to the first highlighted paragraph via its own useEffect
+  };
+
+  const handleChunksUsed = (chunkTexts: string[]) => {
+    setHighlightChunkTexts(chunkTexts);
   };
 
   return (
@@ -103,6 +83,7 @@ function App() {
         )}>
         <ChatInterface
             onCitationClick={handleCitationClick}
+            onChunksUsed={handleChunksUsed}
           />
         </div>
 
@@ -124,7 +105,7 @@ function App() {
           </div>
           <div className="flex-1 overflow-hidden">
             <MdViewer
-              onChunkRefsReady={handleChunkRefsReady}
+              highlightChunkTexts={highlightChunkTexts}
             />
           </div>
         </div>

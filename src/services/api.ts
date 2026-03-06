@@ -2,26 +2,11 @@ import { ChatRequest, ChatResponse, Citation, SourceItem } from '@/types/chat';
 import { ChatConfig } from '@/types/config';
 
 const API_BASE_URL = 'http://localhost:8000';
-const BOOK_NAME = 'book';
-
-// Chunk map entry shape — one entry per indexed chunk (many chunks per section)
-export interface ChunkMapEntry {
-  heading: string;       // nearest section heading (e.g. "Neural Networks")
-  section_path: string;  // full breadcrumb (e.g. "Chapter 5 Neural Networks")
-  preview: string;       // first ~100 chars of the chunk
-}
-
-export async function fetchChunkMap(): Promise<Record<string, ChunkMapEntry>> {
-  const res = await fetch(`${API_BASE_URL}/api/document/${BOOK_NAME}/chunk-map`);
-  if (!res.ok) throw new Error(`Failed to fetch chunk map: ${res.status}`);
-  const data = await res.json();
-  return data.chunk_map;
-}
 
 export async function sendChatMessage(
   query: string,
   chatConfig: ChatConfig
-): Promise<{ content: string; citations: Citation[]; chunksUsed: number[] }> {
+): Promise<{ content: string; citations: Citation[]; chunksUsed: number[]; chunksByPage: Record<number, string[]> }> {
   try {
     const request: ChatRequest = { 
       query,
@@ -46,16 +31,11 @@ export async function sendChatMessage(
 
     const data: ChatResponse = await response.json();
     
-    // Convert sources to citations format expected by the UI
-    const citations: Citation[] = data.sources.map(source => ({
-      page: source.page,
-      text: source.text
-    }));
-
     return {
       content: data.answer,
-      citations: citations,
+      citations: data.sources,
       chunksUsed: data.chunks_used ?? [],
+      chunksByPage: data.chunks_by_page ?? {},
     };
   } catch (error) {
     console.error('Error sending message:', error);

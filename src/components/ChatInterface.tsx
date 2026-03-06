@@ -1,16 +1,18 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Lightbulb } from 'lucide-react';
+import { Send, Loader2, Lightbulb, ChevronRight, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Message } from '@/types/chat';
-import { sendChatMessage, sendChatMessageStream, fetchChunkMap, ChunkMapEntry } from '@/services/api';
+import { sendChatMessage, sendChatMessageStream } from '@/services/api';
 import { useSettings } from '@/hooks/use-settings';
 
 interface ChatInterfaceProps {
-  onCitationClick: (heading: string) => void;
-  onChunksUsed?: (indices: number[]) => void;
+  onCitationClick: (heading: string, chunkTexts: string[]) => void;
+  onChunksUsed?: (chunkTexts: string[]) => void;
 }
 
 const SAMPLE_QUESTIONS = [
@@ -23,15 +25,8 @@ export function ChatInterface({ onCitationClick, onChunksUsed }: ChatInterfacePr
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const [chunkMap, setChunkMap] = useState<Record<string, ChunkMapEntry>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { chatConfig } = useSettings();
-
-  useEffect(() => {
-    fetchChunkMap()
-      .then(setChunkMap)
-      .catch(err => console.error('Failed to load chunk map:', err));
-  }, []);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -53,7 +48,6 @@ export function ChatInterface({ onCitationClick, onChunksUsed }: ChatInterfacePr
       timestamp: new Date(),
     };
 
-    const chunkMapSnapshot = chunkMap; // capture for async callbacks
     const query = input;
     setMessages(prev => [...prev, userMessage]);
     setInput('');
@@ -90,17 +84,10 @@ export function ChatInterface({ onCitationClick, onChunksUsed }: ChatInterfacePr
           onDone: (sources) => {
             setMessages(prev => prev.map(msg => {
               if (msg.id !== assistantMessageId) return msg;
-              const citations = (sources ?? []).map(s => ({ page: s.page, text: s.text }));
-              // Derive chunk indices by matching chunk texts against chunkMap previews
-              const allChunkTexts = Object.values(msg.chunksByPage ?? {}).flat();
-              const derivedIndices = Object.entries(chunkMapSnapshot)
-                .filter(([_, entry]) => {
-                  const prefix = entry.preview.slice(0, Math.min(entry.preview.length, 80));
-                  return prefix.length >= 20 && allChunkTexts.some(t => t.startsWith(prefix));
-                })
-                .map(([idx]) => Number(idx));
-              onChunksUsed?.(derivedIndices);
-              return { ...msg, citations, chunksUsed: derivedIndices };
+              // Use chunksByPage (already set via onChunksByPage) for real chunk texts
+              const allTexts = Object.values(msg.chunksByPage ?? {}).flat();
+              onChunksUsed?.(allTexts);
+              return { ...msg, citations: sources ?? [] };
             }));
             setIsLoading(false);
           },
@@ -128,16 +115,18 @@ export function ChatInterface({ onCitationClick, onChunksUsed }: ChatInterfacePr
       try {
         const response = await sendChatMessage(query, chatConfig);
 
-        onChunksUsed?.(response.chunksUsed ?? []);
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: response.content,
           citations: response.citations,
           chunksUsed: response.chunksUsed ?? [],
+          chunksByPage: response.chunksByPage,
           timestamp: new Date(),
         };
 
+        const allTexts = Object.values(response.chunksByPage ?? {}).flat();
+        onChunksUsed?.(allTexts);
         setMessages(prev => [...prev, assistantMessage]);
         setIsLoading(false);
       } catch (error) {
@@ -147,10 +136,7 @@ export function ChatInterface({ onCitationClick, onChunksUsed }: ChatInterfacePr
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: 'Unable to connect to the API.',
-          citations: [
-            { page: 1, text: 'Introduction section' },
-            { page: 5, text: 'Chapter 2.1' },
-          ],
+          citations: [],
           timestamp: new Date(),
         };
 
@@ -183,7 +169,7 @@ export function ChatInterface({ onCitationClick, onChunksUsed }: ChatInterfacePr
                     <Button
                       key={index}
                       variant="outline"
-                      className="h-auto p-4 text-left justify-start hover:bg-primary/5 hover:border-primary/20 transition-colors whitespace-normal"
+                      className="h-auto p-4 text-left justify-start hover:bg-primary/5 hover:border-primary/20 whitespace-normal"
                       onClick={() => handleSampleQuestion(question)}
                     >
                       <span className="text-sm leading-relaxed break-words">{question}</span>
@@ -213,35 +199,48 @@ export function ChatInterface({ onCitationClick, onChunksUsed }: ChatInterfacePr
                   )}
                 </p>
 
-                {message.citations && message.citations.length > 0 && (
+                {message.chunksByPage && Object.keys(message.chunksByPage).length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border/50">
                     <p className="text-xs font-medium mb-2 opacity-70">Sources:</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {(() => {
-                        const used = message.chunksUsed ?? [];
-                        // Deduplicate by heading to avoid repeating the same section
-                        const seen = new Set<string>();
-                        return used
-                          .filter(idx => {
-                            const h = chunkMap[String(idx)]?.heading;
-                            if (!h || seen.has(h)) return false;
-                            seen.add(h);
-                            return true;
-                          })
-                          .map(idx => (
-                            <button
-                              key={idx}
-                              onClick={() => {
-                                const entry = chunkMap[String(idx)];
-                                if (entry) onCitationClick(entry.heading);
-                              }}
-                              title={chunkMap[String(idx)]?.preview ?? ''}
-                              className="text-xs underline text-blue-500 hover:text-blue-700 text-left"
-                            >
-                              {chunkMap[String(idx)]?.section_path ?? `Chunk ${idx}`}
-                            </button>
-                          ));
-                      })()}
+                    <div className="space-y-1">
+                      {Object.entries(message.chunksByPage)
+                        .sort(([a], [b]) => Number(a) - Number(b))
+                        .map(([page, texts]) => (
+                          <Collapsible key={page} className="border rounded-md">
+                            <CollapsibleTrigger className="w-full flex items-center justify-between p-2 hover:bg-secondary/50 rounded-md [&[data-state=open]]:rounded-b-none [&[data-state=open]>svg]:rotate-90">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                                <span className="text-xs text-left font-medium">
+                                  Page {page}
+                                </span>
+                              </div>
+                              <Badge variant="outline" className="text-[10px] shrink-0 ml-2">
+                                {texts.length} chunk{texts.length !== 1 ? 's' : ''}
+                              </Badge>
+                            </CollapsibleTrigger>
+                            <CollapsibleContent>
+                              <div className="px-3 pb-3 pt-2 space-y-3 border-t">
+                                {texts.map((text, ci) => (
+                                  <div key={ci} className="space-y-1.5">
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                      {text}
+                                    </p>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 text-xs gap-1.5 px-2"
+                                      onClick={() => onCitationClick('', [text])}
+                                    >
+                                      <BookOpen className="h-3 w-3" />
+                                      Open in textbook
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
+                            </CollapsibleContent>
+                          </Collapsible>
+                        ))
+                      }
                     </div>
                   </div>
                 )}
