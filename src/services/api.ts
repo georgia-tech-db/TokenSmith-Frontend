@@ -2,11 +2,26 @@ import { ChatRequest, ChatResponse, Citation, SourceItem } from '@/types/chat';
 import { ChatConfig } from '@/types/config';
 
 const API_BASE_URL = 'http://localhost:8000';
+const BOOK_NAME = 'book';
+
+// Chunk map entry shape — one entry per indexed chunk (many chunks per section)
+export interface ChunkMapEntry {
+  heading: string;       // nearest section heading (e.g. "Neural Networks")
+  section_path: string;  // full breadcrumb (e.g. "Chapter 5 Neural Networks")
+  preview: string;       // first ~100 chars of the chunk
+}
+
+export async function fetchChunkMap(): Promise<Record<string, ChunkMapEntry>> {
+  const res = await fetch(`${API_BASE_URL}/api/document/${BOOK_NAME}/chunk-map`);
+  if (!res.ok) throw new Error(`Failed to fetch chunk map: ${res.status}`);
+  const data = await res.json();
+  return data.chunk_map;
+}
 
 export async function sendChatMessage(
   query: string,
   chatConfig: ChatConfig
-): Promise<{ content: string; citations: Citation[] }> {
+): Promise<{ content: string; citations: Citation[]; chunksUsed: number[] }> {
   try {
     const request: ChatRequest = { 
       query,
@@ -39,7 +54,8 @@ export async function sendChatMessage(
 
     return {
       content: data.answer,
-      citations: citations
+      citations: citations,
+      chunksUsed: data.chunks_used ?? [],
     };
   } catch (error) {
     console.error('Error sending message:', error);
@@ -52,6 +68,7 @@ export interface StreamCallbacks {
   onDone: (sources?: SourceItem[]) => void;
   onError: (error: string) => void;
   onChunksByPage?: (chunksByPage: Record<number, string[]>) => void;
+  onChunksUsed?: (indices: number[]) => void;
 }
 
 export async function sendChatMessageStream(

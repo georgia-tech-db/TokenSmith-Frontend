@@ -1,17 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Lightbulb, ChevronRight } from 'lucide-react';
+import { Send, Loader2, Lightbulb } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Card } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Message } from '@/types/chat';
-import { sendChatMessage, sendChatMessageStream } from '@/services/api';
+import { sendChatMessage, sendChatMessageStream, fetchChunkMap, ChunkMapEntry } from '@/services/api';
 import { useSettings } from '@/hooks/use-settings';
 
 interface ChatInterfaceProps {
-  onCitationClick: (page: number, position?: { top: number; height: number }) => void;
+  onCitationClick: (heading: string) => void;
+  onChunksUsed?: (indices: number[]) => void;
 }
 
 const SAMPLE_QUESTIONS = [
@@ -20,12 +19,19 @@ const SAMPLE_QUESTIONS = [
   "What is atomicity?"
 ];
 
-export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
+export function ChatInterface({ onCitationClick, onChunksUsed }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [chunkMap, setChunkMap] = useState<Record<string, ChunkMapEntry>>({});
   const scrollAreaRef = useRef<HTMLDivElement>(null);
   const { chatConfig } = useSettings();
+
+  useEffect(() => {
+    fetchChunkMap()
+      .then(setChunkMap)
+      .catch(err => console.error('Failed to load chunk map:', err));
+  }, []);
 
   useEffect(() => {
     if (scrollAreaRef.current) {
@@ -47,6 +53,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
       timestamp: new Date(),
     };
 
+    const chunkMapSnapshot = chunkMap; // capture for async callbacks
     const query = input;
     setMessages(prev => [...prev, userMessage]);
     setInput('');
@@ -81,19 +88,20 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
             ));
           },
           onDone: (sources) => {
-            // Convert sources to citations format and add to message
-            if (sources && sources.length > 0) {
-              const citations = sources.map(source => ({
-                page: source.page,
-                text: source.text
-              }));
-              
-              setMessages(prev => prev.map(msg => 
-                msg.id === assistantMessageId 
-                  ? { ...msg, citations }
-                  : msg
-              ));
-            }
+            setMessages(prev => prev.map(msg => {
+              if (msg.id !== assistantMessageId) return msg;
+              const citations = (sources ?? []).map(s => ({ page: s.page, text: s.text }));
+              // Derive chunk indices by matching chunk texts against chunkMap previews
+              const allChunkTexts = Object.values(msg.chunksByPage ?? {}).flat();
+              const derivedIndices = Object.entries(chunkMapSnapshot)
+                .filter(([_, entry]) => {
+                  const prefix = entry.preview.slice(0, Math.min(entry.preview.length, 80));
+                  return prefix.length >= 20 && allChunkTexts.some(t => t.startsWith(prefix));
+                })
+                .map(([idx]) => Number(idx));
+              onChunksUsed?.(derivedIndices);
+              return { ...msg, citations, chunksUsed: derivedIndices };
+            }));
             setIsLoading(false);
           },
           onError: (error) => {
@@ -120,11 +128,13 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
       try {
         const response = await sendChatMessage(query, chatConfig);
 
+        onChunksUsed?.(response.chunksUsed ?? []);
         const assistantMessage: Message = {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: response.content,
           citations: response.citations,
+          chunksUsed: response.chunksUsed ?? [],
           timestamp: new Date(),
         };
 
@@ -205,43 +215,33 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
 
                 {message.citations && message.citations.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border/50">
-                    <p className="text-xs font-medium mb-2 opacity-70">Citations:</p>
-                    <div className="space-y-2">
-                      {message.citations.map((citation, idx) => {
-                        const chunksForPage = message.chunksByPage?.[citation.page] ?? [];
-
-                        return (
-                          <Collapsible key={idx} className="border rounded-md">
-                            <CollapsibleTrigger className="w-full flex items-center justify-between p-2 hover:bg-secondary/50 transition-colors rounded-t-md [&[data-state=open]>div>svg]:rotate-90">
-                              <div className="flex items-center gap-2">
-                                <ChevronRight className="h-4 w-4 transition-transform duration-200" />
-                                <Badge
-                                  variant="secondary"
-                                  className="cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onCitationClick(citation.page + 4, citation.position);
-                                  }}
-                                >
-                                  Page {citation.page + 4}
-                                </Badge>
-                              </div>
-                            </CollapsibleTrigger>
-                            <CollapsibleContent className="px-4 pb-2 pt-1">
-                              <p className="text-sm text-muted-foreground">{citation.text}</p>
-                              {chunksForPage.length > 0 && (
-                                <div className="mt-3 space-y-2">
-                                  {chunksForPage.map((chunk, chunkIdx) => (
-                                    <p key={chunkIdx} className="text-xs text-muted-foreground text-left">
-                                      {chunk}
-                                    </p>
-                                  ))}
-                                </div>
-                              )}
-                            </CollapsibleContent>
-                          </Collapsible>
-                        );
-                      })}
+                    <p className="text-xs font-medium mb-2 opacity-70">Sources:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {(() => {
+                        const used = message.chunksUsed ?? [];
+                        // Deduplicate by heading to avoid repeating the same section
+                        const seen = new Set<string>();
+                        return used
+                          .filter(idx => {
+                            const h = chunkMap[String(idx)]?.heading;
+                            if (!h || seen.has(h)) return false;
+                            seen.add(h);
+                            return true;
+                          })
+                          .map(idx => (
+                            <button
+                              key={idx}
+                              onClick={() => {
+                                const entry = chunkMap[String(idx)];
+                                if (entry) onCitationClick(entry.heading);
+                              }}
+                              title={chunkMap[String(idx)]?.preview ?? ''}
+                              className="text-xs underline text-blue-500 hover:text-blue-700 text-left"
+                            >
+                              {chunkMap[String(idx)]?.section_path ?? `Chunk ${idx}`}
+                            </button>
+                          ));
+                      })()}
                     </div>
                   </div>
                 )}

@@ -35,5 +35,6 @@ export interface Message {
   content: string;
   citations?: Citation[];
   chunksByPage?: Record<number, string[]>;
+  chunksUsed?: number[];
   timestamp: Date;
 }

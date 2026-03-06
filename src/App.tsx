@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Book, X, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ChatInterface } from '@/components/ChatInterface';
-import PdfViewer from '@/components/PdfViewer';
+import MdViewer from '@/components/MdViewer';
 import { SettingsPanel } from '@/components/SettingsPanel';
+import { fetchChunkMap, ChunkMapEntry } from '@/services/api';
 import { useSettings } from '@/hooks/use-settings';
 import { cn } from '@/lib/utils';
 import './App.css';
@@ -13,14 +14,36 @@ import './App.css';
 function App() {
   const [showPdf, setShowPdf] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [targetPage, setTargetPage] = useState<number | undefined>();
-  const [targetPosition, setTargetPosition] = useState<{ top: number; height: number } | undefined>();
+  const chunkHeadingRefs = useRef<Record<string, HTMLElement>>({});
+  const chunkMapRef = useRef<Record<string, ChunkMapEntry>>({});
   const { chatConfig, updateChatConfig } = useSettings();
 
-  const handleCitationClick = (page: number, position?: { top: number; height: number }) => {
-    setTargetPage(page);
-    setTargetPosition(position);
+  useEffect(() => {
+    fetchChunkMap()
+      .then(map => { chunkMapRef.current = map; })
+      .catch(console.error);
+  }, []);
+
+  function handleChunkRefsReady(refs: Record<string, HTMLElement>) {
+    chunkHeadingRefs.current = refs;
+  }
+
+  const handleCitationClick = (heading: string) => {
     setShowPdf(true);
+    // Use rAF to wait for panel to be visible before scrolling
+    const tryScroll = () => {
+      // Primary: exact data-heading attribute match
+      const exact = document.querySelector<HTMLElement>(`[data-heading="${CSS.escape(heading)}"]`);
+      if (exact) { exact.scrollIntoView({ behavior: 'smooth', block: 'start' }); return; }
+      // Fallback: partial text match in registered refs
+      const refs = chunkHeadingRefs.current;
+      const key = Object.keys(refs).find(k =>
+        k.toLowerCase().includes(heading.toLowerCase()) ||
+        heading.toLowerCase().includes(k.toLowerCase())
+      );
+      if (key) refs[key].scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
+    requestAnimationFrame(() => requestAnimationFrame(tryScroll));
   };
 
   return (
@@ -78,34 +101,33 @@ function App() {
           "flex-1 overflow-hidden transition-all duration-300",
           showPdf ? "w-1/2" : "w-full"
         )}>
-          <ChatInterface onCitationClick={handleCitationClick} />
+        <ChatInterface
+            onCitationClick={handleCitationClick}
+          />
         </div>
 
-        {/* PDF Viewer - Side panel */}
-        {showPdf && (
-          <div className="w-1/2 border-l overflow-hidden">
-            <div className="h-full flex flex-col">
-              <div className="flex items-center justify-between p-4 border-b bg-white">
-                <h2 className="text-lg font-semibold">Textbook</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowPdf(false)}
-                  className="h-8 w-8 p-0"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <PdfViewer
-                  pdfUrl="/textbook.pdf"
-                  targetPage={targetPage}
-                  targetPosition={targetPosition}
-                />
-              </div>
-            </div>
+        {/* Textbook panel — always mounted so heading refs are ready before first click */}
+        <div className={cn(
+          "w-1/2 border-l overflow-hidden flex flex-col",
+          !showPdf && "hidden"
+        )}>
+          <div className="flex items-center justify-between p-4 border-b bg-white shrink-0">
+            <h2 className="text-lg font-semibold">Textbook</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPdf(false)}
+              className="h-8 w-8 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-        )}
+          <div className="flex-1 overflow-hidden">
+            <MdViewer
+              onChunkRefsReady={handleChunkRefsReady}
+            />
+          </div>
+        </div>
       </main>
 
       {/* Settings Panel */}
