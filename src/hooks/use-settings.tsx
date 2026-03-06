@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { createContext, useContext, useState, ReactNode } from 'react';
 import { ChatConfig, DEFAULT_CHAT_CONFIG } from '@/types/config';
 

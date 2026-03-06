@@ -42,7 +42,7 @@ export default function PdfViewer({ pdfUrl, targetPage, targetPosition }: PdfVie
       console.log('Navigating to target page:', targetPage, 'current page:', pageNumber);
       setPageNumber(targetPage);
     }
-  }, [targetPage, numPages]);
+  }, [targetPage, numPages, pageNumber]);
 
   // Separate effect to handle scrolling after page renders
   useEffect(() => {
@@ -66,7 +66,7 @@ export default function PdfViewer({ pdfUrl, targetPage, targetPosition }: PdfVie
       // Small delay to ensure the page has rendered
       setTimeout(scrollToPage, 100);
     }
-  }, [pageNumber, targetPosition, scale]);
+  }, [pageNumber, targetPosition, scale, numPages]);
 
   const goToPrevPage = () => {
     console.log('Going to previous page, current:', pageNumber, 'total:', numPages);
