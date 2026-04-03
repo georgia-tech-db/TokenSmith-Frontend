@@ -4,6 +4,8 @@ import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
 
 export default defineConfig({
+  // Relative asset paths when building for Electron (ELECTRON=1); default / for normal web deploy
+  base: process.env.ELECTRON === '1' ? './' : '/',
   plugins: [
     react(),
     nodePolyfills({
