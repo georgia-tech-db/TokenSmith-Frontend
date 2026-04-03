@@ -27,7 +27,7 @@ function App() {
     <div className="h-screen flex flex-col bg-background">
       <header className="border-b bg-white shadow-sm z-10">
         <div className="px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">DB Learning Assistant</h1>
+          <h1 className="text-2xl font-bold">Tokensmith</h1>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 bg-background">
               <Label htmlFor="header-enable-chunks" className="text-sm text-muted-foreground">

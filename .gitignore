@@ -7,12 +7,37 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Dependencies
 node_modules
+
+# Build outputs (Vite / electron-vite)
 dist
+dist-electron
 dist-ssr
+out
+.vite
+
+# Packaged app (electron-builder)
+release
+
+# Env and local overrides
 *.local
 .env
-tsconfig.app.tsbuildinfo
+.env.local
+.env.*.local
+
+# TypeScript
+tsconfig.*.tsbuildinfo
+*.tsbuildinfo
+
+# Tests & tooling
+coverage
+.eslintcache
+
+# macOS / code signing (never commit keys)
+*.pem
+*.p12
+*.mobileprovision
 
 # Editor directories and files
 .vscode/*
