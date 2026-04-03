@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { Settings, RotateCcw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
@@ -7,15 +8,32 @@ import { Input } from '@/components/ui/input';
 import { Separator } from '@/components/ui/separator';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useSettings } from '@/hooks/use-settings';
-import { PROMPT_TYPES } from '@/types/config';
+import { PROMPT_TYPES, GEN_MODEL_DEFAULT } from '@/types/config';
+import { fetchGeneratorModels } from '@/services/api';
 
 interface SettingsPanelProps {
   isOpen: boolean;
   onClose: () => void;
 }
 
+function modelDisplayName(model: string): string {
+  const filename = model.split('/').pop() ?? model;
+  return filename.replace(/\.gguf$/, '');
+}
+
 export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const { chatConfig, updateChatConfig, resetChatConfig } = useSettings();
+  const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [modelsLoading, setModelsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setModelsLoading(true);
+    fetchGeneratorModels()
+      .then((data) => setAvailableModels(data.available))
+      .catch((err) => console.error('Failed to load generator models:', err))
+      .finally(() => setModelsLoading(false));
+  }, [isOpen]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -92,6 +110,37 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                   {PROMPT_TYPES.map((type) => (
                     <SelectItem key={type.value} value={type.value}>
                       {type.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <Separator />
+
+            {/* Generator Model */}
+            <div className="space-y-2">
+              <Label htmlFor="gen-model" className="text-base font-medium">
+                Generator Model
+              </Label>
+              <p className="text-sm text-muted-foreground mb-3">
+                Override the generator model used for responses. "Default" uses whatever is configured on the backend.
+              </p>
+              <Select
+                value={chatConfig.genModel}
+                onValueChange={(value) => updateChatConfig({ genModel: value })}
+                disabled={modelsLoading}
+              >
+                <SelectTrigger id="gen-model">
+                  <SelectValue placeholder={modelsLoading ? 'Loading models…' : 'Select model'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={GEN_MODEL_DEFAULT}>
+                    Default (backend configured)
+                  </SelectItem>
+                  {availableModels.map((model) => (
+                    <SelectItem key={model} value={model}>
+                      {modelDisplayName(model)}
                     </SelectItem>
                   ))}
                 </SelectContent>

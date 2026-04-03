@@ -5,7 +5,10 @@ export interface ChatConfig {
   maxChunks?: number;
   temperature?: number;
   topK?: number;
+  genModel: string;
 }
+
+export const GEN_MODEL_DEFAULT = 'default';
 
 export const DEFAULT_CHAT_CONFIG: ChatConfig = {
   enableChunks: true,
@@ -14,6 +17,7 @@ export const DEFAULT_CHAT_CONFIG: ChatConfig = {
   maxChunks: 5,
   temperature: 0.7,
   topK: 10,
+  genModel: GEN_MODEL_DEFAULT,
 };
 
 export const PROMPT_TYPES = [
