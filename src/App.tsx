@@ -12,6 +12,7 @@ function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [targetPage, setTargetPage] = useState<number | undefined>();
   const [targetPosition, setTargetPosition] = useState<{ top: number; height: number } | undefined>();
+  const pdfUrl = `${import.meta.env.BASE_URL}textbook.pdf`;
 
   const handleCitationClick = (page: number, position?: { top: number; height: number }) => {
     setTargetPage(page);
@@ -73,7 +74,7 @@ function App() {
               </div>
               <div className="flex-1 overflow-hidden">
                 <PdfViewer
-                  pdfUrl="/textbook.pdf"
+                  pdfUrl={pdfUrl}
                   targetPage={targetPage}
                   targetPosition={targetPosition}
                 />
