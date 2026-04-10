@@ -1,9 +1,15 @@
 /**
  * Electron main process — loads the Vite dev server in development,
  * or the built static files when packaged.
+ * Optionally clones and starts the TokenSmith Python API (see electron/backend-manager.cjs).
  */
 const { app, BrowserWindow, shell } = require('electron');
 const path = require('path');
+const {
+  ensureBackendRunning,
+  stopBackend,
+  registerApiOriginHeaderFix,
+} = require('./backend-manager.cjs');
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL || 'http://localhost:5173';
 
@@ -43,11 +49,23 @@ function createWindow() {
   });
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  registerApiOriginHeaderFix();
+
+  try {
+    await ensureBackendRunning(app);
+  } catch (err) {
+    console.error(err);
+  }
+
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
+});
+
+app.on('before-quit', () => {
+  stopBackend();
 });
 
 app.on('window-all-closed', () => {
