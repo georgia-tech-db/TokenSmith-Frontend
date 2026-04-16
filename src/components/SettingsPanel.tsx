@@ -24,16 +24,35 @@ function modelDisplayName(model: string): string {
 export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
   const { chatConfig, updateChatConfig, resetChatConfig } = useSettings();
   const [availableModels, setAvailableModels] = useState<string[]>([]);
+  const [backendDefaultModel, setBackendDefaultModel] = useState<string | null>(null);
   const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
+
+  const loadGeneratorModels = () => {
+    setModelsLoading(true);
+    setModelsError(null);
+    fetchGeneratorModels()
+      .then((data) => {
+        setAvailableModels(data.available);
+        setBackendDefaultModel(data.default);
+      })
+      .catch((err) => {
+        console.error('Failed to load generator models:', err);
+        setModelsError('Failed to load generator models. Please try again.');
+      })
+      .finally(() => setModelsLoading(false));
+  };
 
   useEffect(() => {
     if (!isOpen) return;
-    setModelsLoading(true);
-    fetchGeneratorModels()
-      .then((data) => setAvailableModels(data.available))
-      .catch((err) => console.error('Failed to load generator models:', err))
-      .finally(() => setModelsLoading(false));
+    loadGeneratorModels();
   }, [isOpen]);
+
+  const selectableModels = Array.from(new Set(availableModels)).filter(
+    (model) =>
+      model !== GEN_MODEL_DEFAULT &&
+      (!backendDefaultModel || model !== backendDefaultModel)
+  );
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -124,7 +143,7 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 Generator Model
               </Label>
               <p className="text-sm text-muted-foreground mb-3">
-                Override the generator model used for responses. "Default" uses whatever is configured on the backend.
+                Select the generator model used for responses. "Default" uses the model configured on the backend.
               </p>
               <Select
                 value={chatConfig.genModel}
@@ -136,15 +155,31 @@ export function SettingsPanel({ isOpen, onClose }: SettingsPanelProps) {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value={GEN_MODEL_DEFAULT}>
-                    Default (backend configured)
+                    {backendDefaultModel
+                      ? `Default (${modelDisplayName(backendDefaultModel)})`
+                      : 'Default (backend configured)'}
                   </SelectItem>
-                  {availableModels.map((model) => (
+                  {selectableModels.map((model) => (
                     <SelectItem key={model} value={model}>
                       {modelDisplayName(model)}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              {modelsError && (
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <p className="text-sm text-destructive">{modelsError}</p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={loadGeneratorModels}
+                    disabled={modelsLoading}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
             </div>
 
             <Separator />
