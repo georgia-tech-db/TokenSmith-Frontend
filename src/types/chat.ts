@@ -5,12 +5,12 @@ export interface SourceItem {
 
 export interface ChatRequest {
   query: string;
-  // Testing mode parameters (optional)
   enable_chunks?: boolean;
   prompt_type?: string;
   max_chunks?: number;
   temperature?: number;
   top_k?: number;
+  gen_model?: string;
 }
 
 export interface ChatResponse {

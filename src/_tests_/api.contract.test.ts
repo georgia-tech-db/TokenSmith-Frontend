@@ -14,6 +14,7 @@ const mockConfig: ChatConfig = {
   maxChunks: 5,
   temperature: 0.7,
   topK: 10,
+  genModel: 'default',
 };
 
 describe('API Service Contract', () => {

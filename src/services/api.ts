@@ -1,7 +1,27 @@
 import { ChatRequest, ChatResponse, Citation, SourceItem } from '@/types/chat';
-import { ChatConfig } from '@/types/config';
+import { ChatConfig, GEN_MODEL_DEFAULT } from '@/types/config';
 
 const API_BASE_URL = 'http://localhost:8000';
+
+export interface GeneratorModelsResponse {
+  available: string[];
+  default: string | null;
+}
+
+export async function fetchGeneratorModels(): Promise<GeneratorModelsResponse> {
+  const response = await fetch(`${API_BASE_URL}/api/models/generators`);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch generator models: ${response.status}`);
+  }
+  return response.json();
+}
+
+function buildGenModel(chatConfig: ChatConfig): string | undefined {
+  if (!chatConfig.genModel || chatConfig.genModel === GEN_MODEL_DEFAULT) {
+    return undefined;
+  }
+  return chatConfig.genModel;
+}
 
 export async function sendChatMessage(
   query: string,
@@ -15,6 +35,7 @@ export async function sendChatMessage(
       max_chunks: chatConfig.maxChunks,
       temperature: chatConfig.temperature,
       top_k: chatConfig.topK,
+      gen_model: buildGenModel(chatConfig),
     };
     
     const response = await fetch(`${API_BASE_URL}/api/chat`, {
@@ -67,6 +88,7 @@ export async function sendChatMessageStream(
       max_chunks: chatConfig.maxChunks,
       temperature: chatConfig.temperature,
       top_k: chatConfig.topK,
+      gen_model: buildGenModel(chatConfig),
     };
     
     const response = await fetch(`${API_BASE_URL}/api/chat/stream`, {
