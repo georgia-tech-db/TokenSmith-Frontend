@@ -55,6 +55,24 @@ If you manage multiple Node or Python versions, consider installing [nvm](https:
 
 6. Open the app at `http://localhost:5173`. The frontend expects the backend at `http://localhost:8000`. Update `src/services/api.ts` if your API base URL differs.
 
+### Desktop app (Electron)
+
+With the **backend** and **Vite dev server** running (`npm run dev`), open a third terminal:
+
+```bash
+npm run electron:dev
+```
+
+This opens a native window that loads `http://localhost:5173` (same UI as the browser; API calls still go to `localhost:8000`).
+
+**One command** (starts Vite, waits for port 5173, then Electron):
+
+```bash
+npm run dev:desktop
+```
+
+**Production-style** (built static files, no dev server): `npm run build:desktop`, then `npm run electron:preview`.
+
 ---
 
 ## Setup on Windows 11
