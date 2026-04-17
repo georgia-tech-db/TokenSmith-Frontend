@@ -10,6 +10,12 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
+release
+
+# Electron packaging artifacts (scripts/package-mac.sh)
+resources/python
+resources/backend
+**/__pycache__/
 *.local
 .env
 

@@ -1,0 +1,29 @@
+# Runtime Python dependencies for the packaged Electron app.
+# Aligned with georgia-tech-db/TokenSmith `environment.yml` (pip section on main).
+# Omitted: pytest (dev-only). Duplicates unified on PyPI names (langchain-text-splitters).
+# Note: `pypdf` / `pdfplumber` are not listed in that environment.yml; add them here if your
+# backend branch or indexing pipeline imports them.
+#
+# After a successful `bash scripts/package-mac.sh deps`, consider freezing:
+#   resources/python/bin/python3.12 -m pip freeze > requirements-electron.lock.txt
+# TODO reconcile with backend. Ideally all this should be in backend repo.
+
+faiss-cpu
+llama-cpp-python==0.3.19  # Pin due corrupted 0.3.20-metal wheel
+pyyaml
+tqdm
+nltk
+transformers
+sentence-transformers
+rank_bm25
+langchain
+langchain_text_splitters
+google-genai
+pytest
+rich
+langchain-text-splitters
+fastapi
+uvicorn
+pydantic
+docling
+markdown

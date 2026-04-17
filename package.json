@@ -11,6 +11,7 @@
     "dev:desktop": "concurrently -k \"vite\" \"wait-on http://localhost:5173 && cross-env NODE_ENV=development electron .\"",
     "build": "tsc -b && vite build",
     "build:desktop": "cross-env ELECTRON=1 tsc -b && cross-env ELECTRON=1 vite build",
+    "package:mac": "bash scripts/package-mac.sh",
     "electron:preview": "cross-env NODE_ENV=production electron .",
     "lint": "eslint .",
     "preview": "vite preview",
@@ -79,6 +80,10 @@
     "@types/react-dom": "^18.3.0",
     "@vitejs/plugin-react": "^4.3.1",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "cross-env": "^7.0.3",
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8",
     "eslint": "^9.11.1",
     "eslint-plugin-react-hooks": "^5.1.0-rc.0",
     "eslint-plugin-react-refresh": "^0.4.12",
@@ -91,9 +96,47 @@
     "vite": "^5.4.8",
     "vite-plugin-node-polyfills": "^0.24.0",
     "vitest": "^4.0.18",
-    "concurrently": "^9.1.2",
-    "cross-env": "^7.0.3",
-    "electron": "^33.2.1",
     "wait-on": "^8.0.1"
+  },
+  "build": {
+    "appId": "edu.gatech.db.tokensmith",
+    "productName": "TokenSmith",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "electron/**/*.cjs",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources/python",
+        "to": "python",
+        "filter": [
+          "**/*"
+        ]
+      },
+      {
+        "from": "resources/backend",
+        "to": "backend",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "asarUnpack": [
+      "**/*.node"
+    ],
+    "mac": {
+      "category": "public.app-category.education",
+      "target": [
+        "dmg"
+      ],
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist"
+    }
   }
 }

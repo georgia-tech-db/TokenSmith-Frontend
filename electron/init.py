@@ -282,20 +282,27 @@ def install_python_deps(backend_root: Path, conda: str, env_name: str) -> None:
     if platform.system() == "Darwin" and platform.machine() == "arm64":
         env["CMAKE_ARGS"] = (env.get("CMAKE_ARGS", "") + " -DLLAMA_METAL=on").strip()
 
-    _LOG.info("pip install llama-cpp-python (CMAKE_ARGS may apply on Apple Silicon)")
+    _LOG.info("pip install llama-cpp-python==0.3.19 (CMAKE_ARGS may apply on Apple Silicon)")
+    llama_install_cmd = [
+        "python",
+        "-m",
+        "pip",
+        "install",
+        "--force-reinstall",
+        "llama-cpp-python==0.3.19",
+    ]
+    if platform.system() == "Darwin" and platform.machine() == "arm64":
+        llama_install_cmd.extend(
+            [
+                "--extra-index-url",
+                "https://abetlen.github.io/llama-cpp-python/whl/metal",
+            ]
+        )
     subprocess.run(
         conda_run_cmd(
             conda,
             env_name,
-            [
-                "python",
-                "-m",
-                "pip",
-                "install",
-                "--force-reinstall",
-                "--no-cache-dir",
-                "llama-cpp-python",
-            ],
+            llama_install_cmd,
         ),
         check=True,
         cwd=backend_root,

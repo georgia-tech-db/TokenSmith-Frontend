@@ -1,33 +1,18 @@
 /**
- * Manages the TokenSmith Python API as a child process for the Electron app.
+ * Starts the TokenSmith FastAPI process for the Electron app using the embedded
+ * CPython layout under resources/python (packaged) or TOKENSMITH_PYTHON / python3 (dev).
  *
  * Environment (optional):
- * - TOKENSMITH_SKIP_MANAGED_BACKEND=1 — do not clone, init, or start the backend
- * - TOKENSMITH_BACKEND_GIT_URL — git remote (default: georgia-tech-db/TokenSmith)
- * - TOKENSMITH_BACKEND_PATH — use this repo directory; skip clone
- * - TOKENSMITH_CONDA_ENV — conda environment name (default: ts-ui)
- * - TOKENSMITH_CONDA — path to conda executable if not on PATH
- * - TOKENSMITH_PYTHON — if set, run uvicorn with this Python directly (skips conda run)
+ * - TOKENSMITH_SKIP_MANAGED_BACKEND=1 — do not start the backend
+ * - TOKENSMITH_BACKEND_PATH — TokenSmith repo root (dev override; packaged uses resources/backend)
+ * - TOKENSMITH_PYTHON — python binary (dev override; packaged resolves resources/python/bin/…)
  * - TOKENSMITH_API_PORT — API port (default: 8000)
- * - TOKENSMITH_FORCE_INIT=1 — re-run electron/init.py even if marker exists
- *
- * First run: runs electron/init.py inside the conda env (deps + model download). Bump
- * INIT_MARKER_VERSION below when init steps change.
  */
 
-const { spawn, execFile } = require('child_process');
+const { spawn } = require('child_process');
 const fs = require('fs');
 const http = require('http');
 const path = require('path');
-const { promisify } = require('util');
-
-const execFileAsync = promisify(execFile);
-
-const DEFAULT_GIT_URL = 'https://github.com/georgia-tech-db/TokenSmith.git';
-/** Increment to force re-running init.py for existing installs */
-const INIT_MARKER_VERSION = '1';
-
-const INIT_MARKER_FILENAME = '.tokensmith-electron-init';
 
 let backendChild = null;
 
@@ -44,25 +29,6 @@ function getApiPort() {
   return Number.isFinite(n) && n > 0 ? n : 8000;
 }
 
-function getCondaEnv() {
-  return process.env.TOKENSMITH_CONDA_ENV || 'ts-ui';
-}
-
-function getCondaExecutable() {
-  return process.env.TOKENSMITH_CONDA || 'conda';
-}
-
-function getBackendRoot(app) {
-  if (process.env.TOKENSMITH_BACKEND_PATH) {
-    return path.resolve(process.env.TOKENSMITH_BACKEND_PATH);
-  }
-  return path.join(app.getPath('userData'), 'TokenSmith');
-}
-
-function getGitUrl() {
-  return process.env.TOKENSMITH_BACKEND_GIT_URL || DEFAULT_GIT_URL;
-}
-
 function apiServerPath(backendRoot) {
   return path.join(backendRoot, 'src', 'api_server.py');
 }
@@ -71,130 +37,54 @@ function isRepoPresent(backendRoot) {
   return fs.existsSync(apiServerPath(backendRoot));
 }
 
-function initMarkerPath(backendRoot) {
-  return path.join(backendRoot, INIT_MARKER_FILENAME);
-}
-
-async function readInitMarker(backendRoot) {
-  try {
-    const v = await fs.promises.readFile(initMarkerPath(backendRoot), 'utf8');
-    return v.trim();
-  } catch {
-    return '';
-  }
-}
-
-async function ensureClone(backendRoot, gitUrl) {
-  if (isRepoPresent(backendRoot)) {
-    return;
-  }
-  const parent = path.dirname(backendRoot);
-  await fs.promises.mkdir(parent, { recursive: true });
-
-  if (fs.existsSync(backendRoot)) {
-    const entries = await fs.promises.readdir(backendRoot);
-    if (entries.length > 0) {
-      throw new Error(
-        `Backend path "${backendRoot}" exists but is not a valid TokenSmith checkout (missing src/api_server.py).`
-      );
+function getEmbeddedPythonBin(resourcesPath) {
+  const home = path.join(resourcesPath, 'python');
+  const names = ['python3.12', 'python3', 'python'];
+  for (const name of names) {
+    const binPath = path.join(home, 'bin', name);
+    if (fs.existsSync(binPath)) {
+      try {
+        fs.accessSync(binPath, fs.constants.X_OK);
+        return binPath;
+      } catch {
+        /* try next */
+      }
     }
   }
-
-  await execFileAsync('git', ['clone', '--depth', '1', gitUrl, backendRoot], {
-    env: process.env,
-  });
-}
-
-async function ensureCondaEnvExists(conda, envName) {
-  try {
-    await execFileAsync(conda, ['create', '-n', envName, 'python=3.12', 'pip', '-y'], {
-      env: process.env,
-    });
-  } catch {
-    /* environment may already exist */
-  }
-}
-
-async function runInitIfNeeded(backendRoot) {
-  if (process.env.TOKENSMITH_FORCE_INIT === '1' || process.env.TOKENSMITH_FORCE_INIT === 'true') {
-    try {
-      await fs.promises.unlink(initMarkerPath(backendRoot));
-    } catch {
-      /* no marker */
-    }
-  }
-
-  const marker = await readInitMarker(backendRoot);
-  if (marker === INIT_MARKER_VERSION) {
-    return;
-  }
-
-  const conda = getCondaExecutable();
-  const condaEnv = getCondaEnv();
-  const initScript = path.join(__dirname, 'init.py');
-
-  console.log(
-    `[TokenSmith backend] First-time setup (conda env "${condaEnv}", marker ${marker || 'missing'})…`
-  );
-
-  await ensureCondaEnvExists(conda, condaEnv);
-
-  const initEnv = {
-    ...process.env,
-    TOKENSMITH_CONDA: conda,
-  };
-
-  await execFileAsync(
-    conda,
-    [
-      'run',
-      '--no-capture-output',
-      '-n',
-      condaEnv,
-      'python',
-      initScript,
-      '--backend-root',
-      backendRoot,
-      '--conda-env',
-      condaEnv,
-      '--init-marker-version',
-      INIT_MARKER_VERSION,
-    ],
-    {
-      env: initEnv,
-      stdio: 'inherit',
-    }
+  throw new Error(
+    `Embedded Python not found under ${path.join(home, 'bin')}. Run scripts/package-mac.sh python deps.`
   );
 }
 
-function spawnBackend(backendRoot, port) {
-  const condaEnv = getCondaEnv();
-  const conda = getCondaExecutable();
-
+function getPythonExecutable(app) {
   if (process.env.TOKENSMITH_PYTHON) {
-    const py = process.env.TOKENSMITH_PYTHON;
-    const args = [
-      '-m',
-      'uvicorn',
-      'src.api_server:app',
-      '--host',
-      '127.0.0.1',
-      '--port',
-      String(port),
-    ];
-    return spawn(py, args, {
-      cwd: backendRoot,
-      env: { ...process.env, PYTHONUNBUFFERED: '1' },
-      stdio: 'inherit',
-    });
+    return process.env.TOKENSMITH_PYTHON;
   }
+   if (app.isPackaged) {
+    return getEmbeddedPythonBin(process.resourcesPath);
+  }
+  /* Dev: match TokenSmith environment.yml (python 3.12); override with TOKENSMITH_PYTHON. */
+  return process.platform === 'win32' ? 'python' : 'python3.12';
+}
 
+function getBackendRoot(app) {
+  if (process.env.TOKENSMITH_BACKEND_PATH) {
+    return path.resolve(process.env.TOKENSMITH_BACKEND_PATH);
+  }
+  if (app.isPackaged) {
+    return path.join(process.resourcesPath, 'backend');
+  }
+  const sibling = path.join(__dirname, '..', 'TokenSmith');
+  if (isRepoPresent(sibling)) {
+    return sibling;
+  }
+  throw new Error(
+    'Set TOKENSMITH_BACKEND_PATH to your TokenSmith checkout, or clone georgia-tech-db/TokenSmith next to this repo as ./TokenSmith.'
+  );
+}
+
+function spawnBackend(pythonExe, backendRoot, port) {
   const args = [
-    'run',
-    '--no-capture-output',
-    '-n',
-    condaEnv,
-    'python',
     '-m',
     'uvicorn',
     'src.api_server:app',
@@ -203,12 +93,13 @@ function spawnBackend(backendRoot, port) {
     '--port',
     String(port),
   ];
-
-  return spawn(conda, args, {
+  return spawn(pythonExe, args, {
     cwd: backendRoot,
-    env: { ...process.env, PYTHONUNBUFFERED: '1' },
+    env: {
+      ...process.env,
+      PYTHONUNBUFFERED: '1',
+    },
     stdio: 'inherit',
-    shell: process.platform === 'win32',
   });
 }
 
@@ -239,7 +130,7 @@ async function waitForHealthy(port, timeoutMs) {
   }
   throw new Error(
     `TokenSmith API did not become healthy on port ${port} within ${timeoutMs}ms. ` +
-      `Check the conda env "${getCondaEnv()}" (uvicorn, deps) or set TOKENSMITH_SKIP_MANAGED_BACKEND=1 if the API is managed manually.`
+      'Check backend logs, artifacts under the TokenSmith config, or set TOKENSMITH_SKIP_MANAGED_BACKEND=1 if the API runs elsewhere.'
   );
 }
 
@@ -261,7 +152,7 @@ function stopBackend() {
 }
 
 /**
- * Clone repo if needed; run init once; start uvicorn unless something already serves /api/health.
+ * Start uvicorn unless something already serves /api/health.
  */
 async function ensureBackendRunning(app) {
   if (skipManagedBackend()) {
@@ -276,28 +167,14 @@ async function ensureBackendRunning(app) {
   }
 
   const backendRoot = getBackendRoot(app);
-  const gitUrl = getGitUrl();
-
-  try {
-    await ensureClone(backendRoot, gitUrl);
-  } catch (err) {
-    console.error('[TokenSmith backend] Clone failed:', err.message);
-    throw err;
-  }
-
   if (!isRepoPresent(backendRoot)) {
-    throw new Error(`TokenSmith checkout missing at ${backendRoot}`);
+    throw new Error(`TokenSmith backend missing at ${backendRoot} (expected src/api_server.py).`);
   }
 
-  try {
-    await runInitIfNeeded(backendRoot);
-  } catch (err) {
-    console.error('[TokenSmith backend] Init failed:', err.message);
-    throw err;
-  }
+  const pythonExe = getPythonExecutable(app);
 
-  console.log(`[TokenSmith backend] Starting from ${backendRoot} (port ${port})…`);
-  backendChild = spawnBackend(backendRoot, port);
+  console.log(`[TokenSmith backend] Starting from ${backendRoot} (${pythonExe}, port ${port})…`);
+  backendChild = spawnBackend(pythonExe, backendRoot, port);
 
   backendChild.on('exit', (code, signal) => {
     backendChild = null;
