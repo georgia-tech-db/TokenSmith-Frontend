@@ -26,7 +26,7 @@ function buildGenModel(chatConfig: ChatConfig): string | undefined {
 export async function sendChatMessage(
   query: string,
   chatConfig: ChatConfig
-): Promise<{ content: string; citations: Citation[] }> {
+): Promise<{ content: string; citations: Citation[]; chunksUsed: number[]; chunksByPage: Record<number, string[]> }> {
   try {
     const request: ChatRequest = { 
       query,
@@ -52,15 +52,11 @@ export async function sendChatMessage(
 
     const data: ChatResponse = await response.json();
     
-    // Convert sources to citations format expected by the UI
-    const citations: Citation[] = data.sources.map(source => ({
-      page: source.page,
-      text: source.text
-    }));
-
     return {
       content: data.answer,
-      citations: citations
+      citations: data.sources,
+      chunksUsed: data.chunks_used ?? [],
+      chunksByPage: data.chunks_by_page ?? {},
     };
   } catch (error) {
     console.error('Error sending message:', error);
@@ -73,6 +69,7 @@ export interface StreamCallbacks {
   onDone: (sources?: SourceItem[]) => void;
   onError: (error: string) => void;
   onChunksByPage?: (chunksByPage: Record<number, string[]>) => void;
+  onChunksUsed?: (indices: number[]) => void;
 }
 
 export async function sendChatMessageStream(

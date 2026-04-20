@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { ChatInterface } from '@/components/ChatInterface';
-import PdfViewer from '@/components/PdfViewer';
+import MdViewer from '@/components/MdViewer';
 import { SettingsPanel } from '@/components/SettingsPanel';
 import { useSettings } from '@/hooks/use-settings';
 import { cn } from '@/lib/utils';
@@ -13,14 +13,17 @@ import './App.css';
 function App() {
   const [showPdf, setShowPdf] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-  const [targetPage, setTargetPage] = useState<number | undefined>();
-  const [targetPosition, setTargetPosition] = useState<{ top: number; height: number } | undefined>();
+  const [highlightChunkTexts, setHighlightChunkTexts] = useState<string[]>([]);
   const { chatConfig, updateChatConfig } = useSettings();
 
-  const handleCitationClick = (page: number, position?: { top: number; height: number }) => {
-    setTargetPage(page);
-    setTargetPosition(position);
+  const handleCitationClick = (_heading: string, chunkTexts: string[]) => {
     setShowPdf(true);
+    setHighlightChunkTexts(chunkTexts);
+    // MdViewer auto-scrolls to the first highlighted paragraph via its own useEffect
+  };
+
+  const handleChunksUsed = (chunkTexts: string[]) => {
+    setHighlightChunkTexts(chunkTexts);
   };
 
   return (
@@ -78,34 +81,34 @@ function App() {
           "flex-1 overflow-hidden transition-all duration-300",
           showPdf ? "w-1/2" : "w-full"
         )}>
-          <ChatInterface onCitationClick={handleCitationClick} />
+        <ChatInterface
+            onCitationClick={handleCitationClick}
+            onChunksUsed={handleChunksUsed}
+          />
         </div>
 
-        {/* PDF Viewer - Side panel */}
-        {showPdf && (
-          <div className="w-1/2 border-l overflow-hidden">
-            <div className="h-full flex flex-col">
-              <div className="flex items-center justify-between p-4 border-b bg-white">
-                <h2 className="text-lg font-semibold">Textbook</h2>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowPdf(false)}
-                  className="h-8 w-8 p-0"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </div>
-              <div className="flex-1 overflow-hidden">
-                <PdfViewer
-                  pdfUrl="/textbook.pdf"
-                  targetPage={targetPage}
-                  targetPosition={targetPosition}
-                />
-              </div>
-            </div>
+        {/* Textbook panel — always mounted so heading refs are ready before first click */}
+        <div className={cn(
+          "w-1/2 border-l overflow-hidden flex flex-col",
+          !showPdf && "hidden"
+        )}>
+          <div className="flex items-center justify-between p-4 border-b bg-white shrink-0">
+            <h2 className="text-lg font-semibold">Textbook</h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowPdf(false)}
+              className="h-8 w-8 p-0"
+            >
+              <X className="h-4 w-4" />
+            </Button>
           </div>
-        )}
+          <div className="flex-1 overflow-hidden">
+            <MdViewer
+              highlightChunkTexts={highlightChunkTexts}
+            />
+          </div>
+        </div>
       </main>
 
       {/* Settings Panel */}

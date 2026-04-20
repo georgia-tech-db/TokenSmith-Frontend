@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Lightbulb, ChevronRight } from 'lucide-react';
+import { Send, Loader2, Lightbulb, ChevronRight, BookOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -11,7 +11,8 @@ import { sendChatMessage, sendChatMessageStream } from '@/services/api';
 import { useSettings } from '@/hooks/use-settings';
 
 interface ChatInterfaceProps {
-  onCitationClick: (page: number, position?: { top: number; height: number }) => void;
+  onCitationClick: (heading: string, chunkTexts: string[]) => void;
+  onChunksUsed?: (chunkTexts: string[]) => void;
 }
 
 const SAMPLE_QUESTIONS = [
@@ -20,7 +21,7 @@ const SAMPLE_QUESTIONS = [
   "What is atomicity?"
 ];
 
-export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
+export function ChatInterface({ onCitationClick, onChunksUsed }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -81,19 +82,13 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
             ));
           },
           onDone: (sources) => {
-            // Convert sources to citations format and add to message
-            if (sources && sources.length > 0) {
-              const citations = sources.map(source => ({
-                page: source.page,
-                text: source.text
-              }));
-              
-              setMessages(prev => prev.map(msg => 
-                msg.id === assistantMessageId 
-                  ? { ...msg, citations }
-                  : msg
-              ));
-            }
+            setMessages(prev => prev.map(msg => {
+              if (msg.id !== assistantMessageId) return msg;
+              // Use chunksByPage (already set via onChunksByPage) for real chunk texts
+              const allTexts = Object.values(msg.chunksByPage ?? {}).flat();
+              onChunksUsed?.(allTexts);
+              return { ...msg, citations: sources ?? [] };
+            }));
             setIsLoading(false);
           },
           onError: (error) => {
@@ -125,9 +120,13 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
           role: 'assistant',
           content: response.content,
           citations: response.citations,
+          chunksUsed: response.chunksUsed ?? [],
+          chunksByPage: response.chunksByPage,
           timestamp: new Date(),
         };
 
+        const allTexts = Object.values(response.chunksByPage ?? {}).flat();
+        onChunksUsed?.(allTexts);
         setMessages(prev => [...prev, assistantMessage]);
         setIsLoading(false);
       } catch (error) {
@@ -137,10 +136,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
           id: (Date.now() + 1).toString(),
           role: 'assistant',
           content: 'Unable to connect to the API.',
-          citations: [
-            { page: 1, text: 'Introduction section' },
-            { page: 5, text: 'Chapter 2.1' },
-          ],
+          citations: [],
           timestamp: new Date(),
         };
 
@@ -173,7 +169,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                     <Button
                       key={index}
                       variant="outline"
-                      className="h-auto p-4 text-left justify-start hover:bg-primary/5 hover:border-primary/20 transition-colors whitespace-normal"
+                      className="h-auto p-4 text-left justify-start hover:bg-primary/5 hover:border-primary/20 whitespace-normal"
                       onClick={() => handleSampleQuestion(question)}
                     >
                       <span className="text-sm leading-relaxed break-words">{question}</span>
@@ -203,45 +199,48 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                   )}
                 </p>
 
-                {message.citations && message.citations.length > 0 && (
+                {message.chunksByPage && Object.keys(message.chunksByPage).length > 0 && (
                   <div className="mt-3 pt-3 border-t border-border/50">
-                    <p className="text-xs font-medium mb-2 opacity-70">Citations:</p>
-                    <div className="space-y-2">
-                      {message.citations.map((citation, idx) => {
-                        const chunksForPage = message.chunksByPage?.[citation.page] ?? [];
-
-                        return (
-                          <Collapsible key={idx} className="border rounded-md">
-                            <CollapsibleTrigger className="w-full flex items-center justify-between p-2 hover:bg-secondary/50 transition-colors rounded-t-md [&[data-state=open]>div>svg]:rotate-90">
-                              <div className="flex items-center gap-2">
-                                <ChevronRight className="h-4 w-4 transition-transform duration-200" />
-                                <Badge
-                                  variant="secondary"
-                                  className="cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    onCitationClick(citation.page + 4, citation.position);
-                                  }}
-                                >
-                                  Page {citation.page + 4}
-                                </Badge>
+                    <p className="text-xs font-medium mb-2 opacity-70">Sources:</p>
+                    <div className="space-y-1">
+                      {Object.entries(message.chunksByPage)
+                        .sort(([a], [b]) => Number(a) - Number(b))
+                        .map(([page, texts]) => (
+                          <Collapsible key={page} className="border rounded-md">
+                            <CollapsibleTrigger className="w-full flex items-center justify-between p-2 hover:bg-secondary/50 rounded-md [&[data-state=open]]:rounded-b-none [&[data-state=open]>svg]:rotate-90">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <ChevronRight className="h-3.5 w-3.5 shrink-0" />
+                                <span className="text-xs text-left font-medium">
+                                  Page {page}
+                                </span>
                               </div>
+                              <Badge variant="outline" className="text-[10px] shrink-0 ml-2">
+                                {texts.length} chunk{texts.length !== 1 ? 's' : ''}
+                              </Badge>
                             </CollapsibleTrigger>
-                            <CollapsibleContent className="px-4 pb-2 pt-1">
-                              <p className="text-sm text-muted-foreground">{citation.text}</p>
-                              {chunksForPage.length > 0 && (
-                                <div className="mt-3 space-y-2">
-                                  {chunksForPage.map((chunk, chunkIdx) => (
-                                    <p key={chunkIdx} className="text-xs text-muted-foreground text-left">
-                                      {chunk}
+                            <CollapsibleContent>
+                              <div className="px-3 pb-3 pt-2 space-y-3 border-t">
+                                {texts.map((text, ci) => (
+                                  <div key={ci} className="space-y-1.5">
+                                    <p className="text-xs text-muted-foreground leading-relaxed">
+                                      {text}
                                     </p>
-                                  ))}
-                                </div>
-                              )}
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="h-6 text-xs gap-1.5 px-2"
+                                      onClick={() => onCitationClick('', [text])}
+                                    >
+                                      <BookOpen className="h-3 w-3" />
+                                      Open in textbook
+                                    </Button>
+                                  </div>
+                                ))}
+                              </div>
                             </CollapsibleContent>
                           </Collapsible>
-                        );
-                      })}
+                        ))
+                      }
                     </div>
                   </div>
                 )}
