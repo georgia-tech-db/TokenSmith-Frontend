@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, Lightbulb, ChevronRight } from 'lucide-react';
+import { Send, Lightbulb, ChevronRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -7,7 +7,7 @@ import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 import { Message } from '@/types/chat';
-import { sendChatMessage, sendChatMessageStream } from '@/services/api';
+import { sendChatMessageStream } from '@/services/api';
 import { useSettings } from '@/hooks/use-settings';
 
 interface ChatInterfaceProps {
@@ -24,139 +24,98 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
-  const scrollAreaRef = useRef<HTMLDivElement>(null);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
   const { chatConfig } = useSettings();
 
   useEffect(() => {
-    if (scrollAreaRef.current) {
-      const scrollContainer = scrollAreaRef.current.querySelector('[data-radix-scroll-area-viewport]');
-      if (scrollContainer) {
-        scrollContainer.scrollTop = scrollContainer.scrollHeight;
-      }
-    }
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
+    const query = input;
     const userMessage: Message = {
       id: Date.now().toString(),
       role: 'user',
-      content: input,
+      content: query,
       timestamp: new Date(),
     };
 
-    const query = input;
-    setMessages(prev => [...prev, userMessage]);
-    setInput('');
-    setIsLoading(true);
+    const assistantMessageId = (Date.now() + 1).toString();
 
-    if (chatConfig.enableStreaming) {
-      // Streaming mode
-      const assistantMessageId = (Date.now() + 1).toString();
-      
-      // Add empty assistant message that will be updated as tokens arrive
-      setMessages(prev => [...prev, {
+    // Add user message and empty assistant message immediately
+    setMessages(prev => [
+      ...prev,
+      userMessage,
+      {
         id: assistantMessageId,
         role: 'assistant',
         content: '',
         timestamp: new Date(),
-      }]);
+      }
+    ]);
 
-      try {
-        await sendChatMessageStream(query, chatConfig, {
-          onToken: (token) => {
+    setInput('');
+    setIsLoading(true);
+
+    try {
+      await sendChatMessageStream(query, chatConfig, {
+        onToken: (token) => {
+          setMessages(prev => prev.map(msg =>
+            msg.id === assistantMessageId
+              ? { ...msg, content: msg.content + token }
+              : msg
+          ));
+        },
+        onChunksByPage: (chunksByPage) => {
+          setMessages(prev => prev.map(msg =>
+            msg.id === assistantMessageId
+              ? { ...msg, chunksByPage }
+              : msg
+          ));
+        },
+        onDone: (sources) => {
+          // Convert sources to citations format and add to message
+          if (sources && sources.length > 0) {
+            const citations = sources.map(source => ({
+              page: source.page,
+              text: source.text
+            }));
+
             setMessages(prev => prev.map(msg => 
               msg.id === assistantMessageId 
-                ? { ...msg, content: msg.content + token }
+                ? { ...msg, citations }
                 : msg
             ));
-          },
-          onChunksByPage: (chunksByPage) => {
-            setMessages(prev => prev.map(msg =>
-              msg.id === assistantMessageId
-                ? { ...msg, chunksByPage }
-                : msg
-            ));
-          },
-          onDone: (sources) => {
-            // Convert sources to citations format and add to message
-            if (sources && sources.length > 0) {
-              const citations = sources.map(source => ({
-                page: source.page,
-                text: source.text
-              }));
-              
-              setMessages(prev => prev.map(msg => 
-                msg.id === assistantMessageId 
-                  ? { ...msg, citations }
-                  : msg
-              ));
-            }
-            setIsLoading(false);
-          },
-          onError: (error) => {
-            console.error('Streaming error:', error);
-            setMessages(prev => prev.map(msg => 
-              msg.id === assistantMessageId 
-                ? { ...msg, content: msg.content || `Error: ${error}` }
-                : msg
-            ));
-            setIsLoading(false);
-          },
-        });
-      } catch (error) {
-        console.error('Error in streaming:', error);
-        setMessages(prev => prev.map(msg => 
-          msg.id === assistantMessageId 
-            ? { ...msg, content: 'Unable to connect to the API.' }
-            : msg
-        ));
-        setIsLoading(false);
-      }
-    } else {
-      // Non-streaming mode
-      try {
-        const response = await sendChatMessage(query, chatConfig);
-
-        const assistantMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: response.content,
-          citations: response.citations,
-          timestamp: new Date(),
-        };
-
-        setMessages(prev => [...prev, assistantMessage]);
-        setIsLoading(false);
-      } catch (error) {
-        console.error('Error sending message:', error);
-
-        const errorMessage: Message = {
-          id: (Date.now() + 1).toString(),
-          role: 'assistant',
-          content: 'Unable to connect to the API.',
-          citations: [
-            { page: 1, text: 'Introduction section' },
-            { page: 5, text: 'Chapter 2.1' },
-          ],
-          timestamp: new Date(),
-        };
-
-        setMessages(prev => [...prev, errorMessage]);
-        setIsLoading(false);
-      }
+          }
+          setIsLoading(false);
+        },
+        onError: (error) => {
+          console.error('Streaming error:', error);
+          setMessages(prev => prev.map(msg =>
+            msg.id === assistantMessageId
+              ? { ...msg, content: msg.content || `Error: ${error}` }
+              : msg
+          ));
+          setIsLoading(false);
+        },
+      });
+    } catch (error) {
+      console.error('Error in streaming:', error);
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantMessageId
+          ? { ...msg, content: 'Unable to connect to the API.' }
+          : msg
+      ));
+      setIsLoading(false);
     }
-  };
-
-  const handleSampleQuestion = (question: string) => {
-    setInput(question);
-  };
+  }
 
   return (
     <div className="flex flex-col h-full bg-neutral-50">
-      <ScrollArea ref={scrollAreaRef} className="flex-1 p-6">
+      <ScrollArea className="flex-1 p-6">
         <div className="space-y-4">
           {messages.length === 0 && (
             <div className="text-center py-12">
@@ -174,7 +133,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
                       key={index}
                       variant="outline"
                       className="h-auto p-4 text-left justify-start hover:bg-primary/5 hover:border-primary/20 transition-colors whitespace-normal"
-                      onClick={() => handleSampleQuestion(question)}
+                      onClick={() => setInput(question)}
                     >
                       <span className="text-sm leading-relaxed break-words">{question}</span>
                     </Button>
@@ -198,7 +157,7 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
               >
                 <p className="whitespace-pre-wrap text-left">
                   {message.content}
-                  {message.role === 'assistant' && isLoading && chatConfig.enableStreaming && message === messages[messages.length - 1] && (
+                  {message.role === 'assistant' && isLoading && message === messages[messages.length - 1] && (
                     <span className="inline-block w-2 h-4 ml-0.5 bg-current animate-pulse" />
                   )}
                 </p>
@@ -249,13 +208,8 @@ export function ChatInterface({ onCitationClick }: ChatInterfaceProps) {
             </div>
           ))}
 
-          {isLoading && !chatConfig.enableStreaming && (
-            <div className="flex justify-start">
-              <Card className="p-4 bg-muted">
-                <Loader2 className="h-5 w-5 animate-spin" />
-              </Card>
-            </div>
-          )}
+          {/* Target for smooth scrolling */}
+          <div ref={messagesEndRef} />
         </div>
       </ScrollArea>
 
