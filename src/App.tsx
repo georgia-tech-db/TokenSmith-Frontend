@@ -1,21 +1,18 @@
 import { useState } from 'react';
-import { Book, X, Settings } from 'lucide-react';
+import { X} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
 import { ChatInterface } from '@/components/ChatInterface';
 import PdfViewer from '@/components/PdfViewer';
 import { SettingsPanel } from '@/components/SettingsPanel';
-import { useSettings } from '@/hooks/use-settings';
 import { cn } from '@/lib/utils';
 import './App.css';
+import gtLogo from '/assets/logo1.png';
 
 function App() {
   const [showPdf, setShowPdf] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [targetPage, setTargetPage] = useState<number | undefined>();
   const [targetPosition, setTargetPosition] = useState<{ top: number; height: number } | undefined>();
-  const { chatConfig, updateChatConfig } = useSettings();
 
   const handleCitationClick = (page: number, position?: { top: number; height: number }) => {
     setTargetPage(page);
@@ -24,51 +21,13 @@ function App() {
   };
 
   return (
-    <div className="h-screen flex flex-col bg-background">
-      <header className="border-b bg-white shadow-sm z-10">
-        <div className="px-6 py-4 flex items-center justify-between">
-          <h1 className="text-2xl font-bold">DB Learning Assistant</h1>
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 rounded-md border px-3 py-1.5 bg-background">
-              <Label htmlFor="header-enable-chunks" className="text-sm text-muted-foreground">
-                Use Chunks
-              </Label>
-              <div className="relative h-5 w-9">
-                <Switch
-                  id="header-enable-chunks"
-                  checked={chatConfig.enableChunks}
-                  onCheckedChange={(checked) => updateChatConfig({ enableChunks: checked })}
-                  className="absolute inset-0"
-                />
-                <span
-                  className={cn(
-                    'pointer-events-none absolute inset-0 z-10 flex items-center justify-center text-[9px] font-medium leading-none',
-                    chatConfig.enableChunks ? 'text-primary-foreground' : 'text-muted-foreground'
-                  )}
-                >
-                  {chatConfig.enableChunks ? 'On' : 'Off'}
-                </span>
-              </div>
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowSettings(true)}
-              className="gap-2"
-            >
-              <Settings className="h-4 w-4" />
-              Settings
-            </Button>
-            <Button
-              variant={showPdf ? "secondary" : "outline"}
-              size="sm"
-              onClick={() => setShowPdf(!showPdf)}
-              className="gap-2"
-            >
-              <Book className="h-4 w-4" />
-              {showPdf ? 'Hide' : 'Show'} Textbook
-            </Button>
-          </div>
+    <div className="h-screen flex flex-col bg-gt-tan">
+      <header className="shadow-sm z-10">
+        <div className="relative px-6 py-4 flex items-center">
+          <img src={gtLogo} alt="Georgia Tech Logo" className="h-16 w-auto" />
+          <h1 className="absolute left-1/2 -translate-x-1/2 text-3xl font-bold text-black">
+            TokenSmith
+          </h1>
         </div>
       </header>
 
@@ -78,7 +37,14 @@ function App() {
           "flex-1 overflow-hidden transition-all duration-300",
           showPdf ? "w-1/2" : "w-full"
         )}>
-          <ChatInterface onCitationClick={handleCitationClick} />
+          <ChatInterface 
+            onCitationClick={handleCitationClick} 
+            onSettingsClick={() => setShowSettings(true)}
+            onBookClick={() => setShowPdf(!showPdf)}
+            onUploadClick={() => {
+              console.log("Upload document clicked");
+            }}
+          />
         </div>
 
         {/* PDF Viewer - Side panel */}
@@ -86,9 +52,9 @@ function App() {
           <div className="w-1/2 border-l overflow-hidden">
             <div className="h-full flex flex-col">
               <div className="flex items-center justify-between p-4 border-b bg-white">
-                <h2 className="text-lg font-semibold">Textbook</h2>
+                <h2 className="text-lg font-semibold">Your Document</h2>
                 <Button
-                  variant="ghost"
+                  variant="outline"
                   size="sm"
                   onClick={() => setShowPdf(false)}
                   className="h-8 w-8 p-0"

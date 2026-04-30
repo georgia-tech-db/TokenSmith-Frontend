@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
 import { Document, Page, pdfjs } from 'react-pdf';
-import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ZoomIn, ZoomOut} from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
@@ -88,20 +88,20 @@ export default function PdfViewer({ pdfUrl, targetPage, targetPosition }: PdfVie
 
   return (
     <div className="flex flex-col h-full bg-neutral-100">
-      <div className="border-b p-4 bg-white flex items-center justify-between">
+      <div className="border-b p-4 bg-white flex items-center justify-center">
         <div className="flex items-center gap-3">
-          <Button variant="outline" size="icon" onClick={zoomOut}>
-            <ZoomOut className="h-4 w-4" />
+          <Button variant="outline" onClick={zoomOut}>
+            <ZoomOut className="h-4 w-4 text-black" />
           </Button>
           <span className="text-sm min-w-[70px] text-center font-medium">{Math.round(scale * 100)}%</span>
-          <Button variant="outline" size="icon" onClick={zoomIn}>
+          <Button variant="outline" onClick={zoomIn}>
             <ZoomIn className="h-4 w-4" />
           </Button>
         </div>
       </div>
 
       <ScrollArea ref={scrollAreaRef} className="flex-1">
-        <div className="flex justify-center p-4">
+        <div className="flex flex-col items-center justify-center w-full min-h-full p-4">
           <Document
             file={pdfUrl}
             onLoadSuccess={onDocumentLoadSuccess}
@@ -122,7 +122,7 @@ export default function PdfViewer({ pdfUrl, targetPage, targetPosition }: PdfVie
               <div
                 key={`page_${pageNumber}`}
                 ref={(el) => (pageRefs.current[pageNumber] = el)}
-                className="shadow-lg"
+                className="flex justify-center"
               >
                 <Page
                   pageNumber={pageNumber}
