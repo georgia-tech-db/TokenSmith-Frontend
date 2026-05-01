@@ -14,14 +14,14 @@ interface ChatInterfaceProps {
   onCitationClick: (page: number, position?: { top: number; height: number }) => void;
   onUploadClick?: () => void;
   onSettingsClick?: () => void;
-  onBookClick?: () => void;
+  onOpenClick?: () => void;
 }
 
 export function ChatInterface({ 
   onCitationClick, 
   onUploadClick, 
   onSettingsClick, 
-  onBookClick 
+  onOpenClick
 }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
@@ -47,7 +47,7 @@ export function ChatInterface({
 
     const assistantMessageId = (Date.now() + 1).toString();
 
-    // Add user message and empty assistant message immediately
+    // Add user message and empty assistant message
     setMessages(prev => [
       ...prev,
       userMessage,
@@ -156,7 +156,7 @@ export function ChatInterface({
             type="button" 
             variant="ghost" 
             title="Show Textbook"
-            onClick={onBookClick}
+            onClick={onOpenClick}
             className="w-14 h-14 rounded-xl text-black bg-gt-tan-light hover:bg-yellow-500 transition-colors"
           >
             <BookOpen className="h-6 w-6" />
